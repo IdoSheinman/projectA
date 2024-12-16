@@ -48,6 +48,28 @@ void printNucVectorBool(vector<bool> vec) {
     cout << endl;
 }
 
+
+
+void printDifferences(const vector<bool>& vec1, const vector<bool>& vec2) {
+   /* if (vec1.size() != vec2.size()) {
+        cout << "The vectors have different sizes, so differences cannot be computed." << endl;
+        return;
+    }*/
+
+    cout << "Differences between the vectors:" << endl;
+    bool hasDifferences = false;
+    for (size_t i = 0; i < vec1.size(); ++i) {
+        if (vec1[i] != vec2[i]) {
+            cout << "Index " << i << ": vec1 = " << vec1[i] << ", vec2 = " << vec2[i] << endl;
+            hasDifferences = true;
+        }
+    }
+
+    if (!hasDifferences) {
+        cout << "The vectors are identical." << endl;
+    }
+}
+
 int restart_param (int m, int k) {
     size_m = m;
     size_k = k;
@@ -175,8 +197,8 @@ int encode_bic () {
     }
 
     if (rest>0) {
-        i_e = static_cast<int>(size_n) - 1; //???
         add_dummy_bits(2*size_k-rest);
+        i_e = static_cast<int>(size_n) - size_beta - 1; //???
         vector<bool> oligo(2*size_k-size_beta);//check???
         // Add the pair (i, oligo) to result_vec
         result_vec_bic.emplace_back(oligo_num, oligo);
@@ -193,6 +215,32 @@ int encode_bic () {
     return 0;
 }
 
+int add_Q_data (int ol_i) {
+    auto it = result_vec_bic.begin();
+    for (; it != result_vec_bic.end(); it++) {
+        if (it->first == ol_i) {
+            break;
+        }
+    }
+
+    if (it == result_vec_bic.end()) {
+        return 1;
+    }
+
+    for (int l = 2*size_m+1; l <= it->second.size(); l += 2*size_m) {
+        if (is_condition_1_satisfied(it->second,l)&&is_condition_2_satisfied(it->second,l)) {
+           continue;
+        }
+        else {
+
+            decoded_vec_bic.insert(decoded_vec_bic.end(),1, it->second[l]);
+        }
+
+    }
+    return 0;
+}
+
+
 int take_data_without_Q (int ol_i) {
     auto it = result_vec_bic.begin();
     for (; it != result_vec_bic.end(); it++) {
@@ -204,28 +252,33 @@ int take_data_without_Q (int ol_i) {
     if (it == result_vec_bic.end()) {
         return 1;
     }
-    for (int l = i_s;l<2*size_k;l++) {
+    for (int l = 0;l<2*size_k;l++) {
         //TODO: Skip Q
-        decoded_vec_bic [l] = it->second[l-i_s];
+        if (l-(2*size_m+1)<0 || ((l-(2*size_m+1))%(2*size_m) != 0)) {
+            decoded_vec_bic.insert(decoded_vec_bic.end(),1, it->second[l]);
+        }
     }
+
+    return 0;
 }
 
 int decode_bic () {
     for (auto oligo_vec:result_vec_bic) {
         take_data_without_Q(oligo_vec.first) ;
-
-
+        add_Q_data (oligo_vec.first);
     }
+    return 0;
 }
 
 
 int main() {
     //data_vec = vector<bool>(36, false);
-    //data_vec.insert(data_vec.end(), 1, true);
+   // data_vec.insert(data_vec.begin(), 1, true); 0,0, 0 ,1, 1 ,0 ,1, 1 ,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,
 
-    data_vec = {0,0, 0 ,1, 1 ,0 ,1, 1 ,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1};
+    data_vec = {1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1};
     size_n = data_vec.size();
 
+    decoded_vec_bic = vector<bool>();
     //if (data_vec.size()%2!=0) {
      //   data_vec.insert(data_vec.end(),1,false);
     //}
@@ -237,7 +290,7 @@ int main() {
     }
    //unsigned long num_i = ((size_n)+(2*size_k-size_beta)-1)/(2*size_k-size_beta);
     encode_bic();
-
+    decode_bic();
 
     cout << "----------------"<< endl;
     cout << "size_DATA: " <<size_n<< endl;
@@ -245,9 +298,10 @@ int main() {
     cout << "K: " <<size_k<< endl;
     cout << "m: " <<size_m<< endl;
     //cout << "need to be oligo num: " <<num_i<< endl;
-    cout << "----------------"<< endl;
+    cout << "----------ORIGINAL----------"<< endl;
     printVectorBool(data_vec);
     printNucVectorBool(data_vec);
+    cout << "---------------------------"<< endl;
     for (int l=0; l<result_vec_bic.size(); l++) {
         cout << "i is: "<<result_vec_bic[l].first << endl;
         cout << "vec is: " << endl;
@@ -255,6 +309,12 @@ int main() {
         printNucVectorBool(result_vec_bic[l].second);
     }
 
+    cout << "----------DECODE----------"<< endl;
+    printVectorBool(decoded_vec_bic);
+    printNucVectorBool(decoded_vec_bic);
+
+    cout << "----------EQ??----------"<< endl;
+    printDifferences(data_vec, decoded_vec_bic);
 
     return 0;
 }
