@@ -8,6 +8,7 @@
 #include <math.h>
 #include <utility>
 #include <vector>
+#include <random>
 using namespace std;
 
 #define NUC_A 0
@@ -152,6 +153,7 @@ int add_bbic_bit (int ol_i) {
            }
        else {
            d_i++;
+           cout << "ADDING Q BIT IN: " << i_e+d_i << endl;
            if (i_e+d_i<data_vec.size()){
                it->second[l] = data_vec[i_e+d_i];
            }//if the last???
@@ -270,12 +272,37 @@ int decode_bic () {
     return 0;
 }
 
+void fill_random_data() {
+    // Constants for 0 to 1 MB size in bits
+    const size_t MAX_BITS = 1 * 64;//1024;// *  8; // 1 KB in bits
+
+    // Seed random number generator
+    random_device rd;    // Random device for seed
+    mt19937 gen(rd());   // Mersenne Twister RNG
+    uniform_int_distribution<size_t> size_dist(0, MAX_BITS); // Size between 0 and 1MB
+    uniform_int_distribution<int> bit_dist(0, 1);           // Values 0 or 1
+
+    // Generate a random size
+    size_t random_size = size_dist(gen);
+
+    // Resize the vector
+    data_vec.resize(random_size);
+
+    // Fill with random values
+    for (size_t i = 0; i < random_size; ++i) {
+        data_vec[i] = static_cast<bool>(bit_dist(gen));
+    }
+}
+
 
 int main() {
     //data_vec = vector<bool>(36, false);
    // data_vec.insert(data_vec.begin(), 1, true); 0,0, 0 ,1, 1 ,0 ,1, 1 ,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,
 
-    data_vec = {1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1};
+    //0 0 0 1 0 1 0 1 0 1 0 0 0 1 0 1 0 0 1 1 1 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 1 1 0
+    //data_vec = {0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0};
+    data_vec = {0,0,0,0 ,0,0,0,0 ,1,1,1,1 ,1,1,1,1};
+    //fill_random_data();
     size_n = data_vec.size();
 
     decoded_vec_bic = vector<bool>();
