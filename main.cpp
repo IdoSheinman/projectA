@@ -49,26 +49,28 @@ void printNucVectorBool(vector<bool> vec) {
     cout << endl;
 }
 
-
-
-void printDifferences(const vector<bool>& vec1, const vector<bool>& vec2) {
-   /* if (vec1.size() != vec2.size()) {
-        cout << "The vectors have different sizes, so differences cannot be computed." << endl;
-        return;
-    }*/
-
-    cout << "Differences between the vectors:" << endl;
+bool areEqual(const vector<bool>& vec1, const vector<bool>& vec2, bool verbose=false) {
+    /* if (vec1.size() != vec2.size()) {
+         cout << "The vectors have different sizes, so differences cannot be computed." << endl;
+         return;
+     }*/
+    if (verbose) {
+        cout << "Differences between the vectors:" << endl;
+    }
     bool hasDifferences = false;
     for (size_t i = 0; i < vec1.size(); ++i) {
         if (vec1[i] != vec2[i]) {
-            cout << "Index " << i << ": vec1 = " << vec1[i] << ", vec2 = " << vec2[i] << endl;
+            if (verbose) {
+                cout << "Index " << i << ": vec1 = " << vec1[i] << ", vec2 = " << vec2[i] << endl;
+            }
             hasDifferences = true;
         }
     }
 
-    if (!hasDifferences) {
+    if (verbose && !hasDifferences) {
         cout << "The vectors are identical." << endl;
     }
+    return !hasDifferences;
 }
 
 int restart_param (int m, int k) {
@@ -294,6 +296,27 @@ void fill_random_data() {
     }
 }
 
+int pad_till_success(vector<bool> data) {
+    int counter = 0;
+    while (!areEqual(data_vec, decoded_vec_bic)) {
+        data_vec = data;
+        size_n = data_vec.size();
+        for (int i = 0; i < counter; ++i) {
+            data_vec.insert(data_vec.end(),1,0);
+        }
+
+        decoded_vec_bic = vector<bool>();
+        restart_param(3,10);
+        if (2*size_m >= size_k) {
+            cout << "K and M is invalid"<< endl;
+            cin;
+        }
+        encode_bic();
+        decode_bic();
+        counter+=1;
+    }
+    return counter;
+}
 
 int main() {
     //data_vec = vector<bool>(36, false);
@@ -301,7 +324,7 @@ int main() {
 
     //0 0 0 1 0 1 0 1 0 1 0 0 0 1 0 1 0 0 1 1 1 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 1 1 0
     //data_vec = {0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0};
-    data_vec = {0,0,0,0 ,0,0,0,0 ,1,1,1,1 ,1,1,1,1};
+    data_vec = {0,0,0,0 ,0,0,0,0 ,1,1,1,1 ,1,1,1,1,0,0};
     //fill_random_data();
     size_n = data_vec.size();
 
@@ -341,7 +364,10 @@ int main() {
     printNucVectorBool(decoded_vec_bic);
 
     cout << "----------EQ??----------"<< endl;
-    printDifferences(data_vec, decoded_vec_bic);
+    areEqual(data_vec, decoded_vec_bic, true);
+
+    cout << "Padded:" << pad_till_success(data_vec);
+    areEqual(data_vec, decoded_vec_bic, true);
 
     return 0;
 }
