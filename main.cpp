@@ -211,9 +211,6 @@ int encode_bic () {
         }
         oligo_num++;
         rest = signed(data_vec.size()-i_s);
-        if (oligo_num==2 && result_vec_bic[0].second[19]==false) {
-            continue;
-        }
         if (rest<=0) {
             used_all_data = true;
         }
