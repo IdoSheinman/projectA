@@ -22,6 +22,9 @@ vector<pair<int,vector<bool>>> result_vec_bic;
 vector<bool> decoded_vec_bic;
 int i_s,i_e, size_m, size_k, size_beta;
 unsigned long size_n;
+bool used_all_data;
+int counter;
+bool add_dummy_bits();
 
 void printVectorBool(const vector<bool>& vec) {
     for (bool val : vec) {
@@ -32,7 +35,7 @@ void printVectorBool(const vector<bool>& vec) {
 
 void printNucVectorBool(vector<bool> vec) {
     auto it = vec.begin();
-    for (; (it != vec.end())&&(it-1!= vec.end()); it=it+2) {
+    for (; (it != vec.end())&&(it+1!= vec.end()); it=it+2) {
         if ((!*it)&&(!*(it+1))) {
             cout << "A" << " ";
         }
@@ -79,6 +82,8 @@ int restart_param (int m, int k) {
     size_beta = (size_k+size_m-1)/size_m - 1;
     i_s = 0;
     i_e = 0;
+    used_all_data = false;
+    counter = 0;
     return 0;
 }
 
@@ -104,7 +109,12 @@ int copy_data_without_Q( int ol_i) {
 
 
     for (int l=i_s; l<=i_e; l++) {
-        it->second[l-i_s] = data_vec[l];
+        if (l < data_vec.size()) {
+            it->second[l-i_s] = data_vec[l];
+        } else {
+            it->second[l-i_s] = add_dummy_bits();
+            counter++;
+        }
     }
 
     return (addEmptyItems((it->second), size_m));
@@ -118,6 +128,12 @@ bool is_condition_1_satisfied(vector<bool> oli, int position) {
     int current_streak = 1;
     for (int pos = position-(2*size_m-1); (pos < position+2*size_m && (pos+1) < size_n); pos+=2) {
         if (pos+1 == position) continue;
+        // Perhaps make this part of the for loop or find a more elgant solution
+        // This was the bug causing our code to not work sometimes (depending on the garbage
+        // date when out of range)
+        if (oli.size()<=pos) {
+            continue;
+        }
         if ((curr_upper_bit != oli[pos])||(curr_lower_bit != oli[pos+1])) {
             current_streak = 1;
             curr_upper_bit = oli[pos];
@@ -155,36 +171,33 @@ int add_bbic_bit (int ol_i) {
            }
        else {
            d_i++;
-           cout << "ADDING Q BIT IN: " << i_e+d_i << endl;
+           cout << "ADDING Q BIT IN: " << l << " from: " << i_e+d_i << endl;
            if (i_e+d_i<data_vec.size()){
                it->second[l] = data_vec[i_e+d_i];
            }//if the last???
            else {
                cout << "ERROR: Reached unreachable code"<<endl;
-               it->second[l] = false; //need to see what val at the end
-               d_i--;
+               it->second[l] = add_dummy_bits(); //need to see what val at the end
+               counter++;
            }
        }
     }
     return d_i;;
 }
-int add_dummy_bits(int add_num) {
+bool add_dummy_bits() {
+    used_all_data = true;
     bool dummy_arr[] = {false, false, false, true, true, false, true, true};
-    int counter = 0;
-    while (add_num > 0) {
-        data_vec.insert(data_vec.end(),1,dummy_arr[counter % 8]);
-        counter++;
-        add_num--;
-    }
-    size_n = data_vec.size();
-    return 0;
+    //data_vec.insert(data_vec.end(),1,dummy_arr[counter % 8]);
+    //counter++;
+    //size_n = data_vec.size();
+    return dummy_arr[counter % 8];
 }
 int encode_bic () {
     int oligo_num=1, temp_d;
     bool do_loop = true;
     int rest = signed(data_vec.size()-i_e);
 
-    while (rest>=2*size_k) {
+    while (!used_all_data) {
         i_e= i_s + 2*size_k-size_beta-1;
         vector<bool> oligo(2*size_k-size_beta);
         // Add the pair (i, oligo) to result_vec
@@ -198,9 +211,15 @@ int encode_bic () {
         }
         oligo_num++;
         rest = signed(data_vec.size()-i_s);
+        if (oligo_num==2 && result_vec_bic[0].second[19]==false) {
+            continue;
+        }
+        if (rest<=0) {
+            used_all_data = true;
+        }
     }
 
-    if (rest>0) {
+    /*if (rest>0) {
         add_dummy_bits(2*size_k-rest);
         i_e = static_cast<int>(size_n) - size_beta - 1; //???
         vector<bool> oligo(2*size_k-size_beta);//check???
@@ -215,7 +234,7 @@ int encode_bic () {
         }
 
     }
-
+*/
     return 0;
 }
 
@@ -232,14 +251,9 @@ int add_Q_data (int ol_i) {
     }
 
     for (int l = 2*size_m+1; l <= it->second.size(); l += 2*size_m) {
-        if (is_condition_1_satisfied(it->second,l)&&is_condition_2_satisfied(it->second,l)) {
-           continue;
-        }
-        else {
-
+        if (!is_condition_1_satisfied(it->second,l)||!is_condition_2_satisfied(it->second,l)) {
             decoded_vec_bic.insert(decoded_vec_bic.end(),1, it->second[l]);
         }
-
     }
     return 0;
 }
@@ -247,7 +261,7 @@ int add_Q_data (int ol_i) {
 
 int take_data_without_Q (int ol_i) {
     auto it = result_vec_bic.begin();
-    for (; it != result_vec_bic.end(); it++) {
+    for (; it != result_vec_bic.end(); ++it) {
         if (it->first == ol_i) {
             break;
         }
@@ -276,7 +290,7 @@ int decode_bic () {
 
 void fill_random_data() {
     // Constants for 0 to 1 MB size in bits
-    const size_t MAX_BITS = 1 * 64;//1024;// *  8; // 1 KB in bits
+    const size_t MAX_BITS = 128*8; // 1 KB in bits
 
     // Seed random number generator
     random_device rd;    // Random device for seed
@@ -324,50 +338,59 @@ int main() {
 
     //0 0 0 1 0 1 0 1 0 1 0 0 0 1 0 1 0 0 1 1 1 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 1 1 0
     //data_vec = {0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0};
-    data_vec = {0,0,0,0 ,0,0,0,0 ,1,1,1,1 ,1,1,1,1,0,0};
-    //fill_random_data();
-    size_n = data_vec.size();
+    data_vec = {0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0};
+    //for (int i=0; i<1; i++) {
+    //    fill_random_data();
+        //data_vec = {1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0};
+        size_n = data_vec.size();
 
-    decoded_vec_bic = vector<bool>();
-    //if (data_vec.size()%2!=0) {
-     //   data_vec.insert(data_vec.end(),1,false);
+        if (size_n%2 == 1) {
+            data_vec.insert(data_vec.end(), 1, 0);
+            size_n = data_vec.size();
+        }
+
+        decoded_vec_bic = vector<bool>();
+        //if (data_vec.size()%2!=0) {
+        //   data_vec.insert(data_vec.end(),1,false);
+        //}
+        restart_param(3,10);
+        //check param
+        if (2*size_m >= size_k) {
+            cout << "K and M is invalid"<< endl;
+            cin;
+        }
+        //unsigned long num_i = ((size_n)+(2*size_k-size_beta)-1)/(2*size_k-size_beta);
+        encode_bic();
+        decode_bic();
+
+        cout << "----------------"<< endl;
+        cout << "size_DATA: " <<size_n<< endl;
+        cout << "size_beta: " <<size_beta<< endl;
+        cout << "K: " <<size_k<< endl;
+        cout << "m: " <<size_m<< endl;
+        //cout << "need to be oligo num: " <<num_i<< endl;
+        cout << "----------ORIGINAL----------"<< endl;
+        printVectorBool(data_vec);
+        printNucVectorBool(data_vec);
+        cout << "---------------------------"<< endl;
+        for (int l=0; l<result_vec_bic.size(); l++) {
+            cout << "i is: "<<result_vec_bic[l].first << endl;
+            cout << "vec is: " << endl;
+            printVectorBool(result_vec_bic[l].second);
+            printNucVectorBool(result_vec_bic[l].second);
+        }
+
+        cout << "----------DECODE----------"<< endl;
+        printVectorBool(decoded_vec_bic);
+        printNucVectorBool(decoded_vec_bic);
+
+        cout << "----------EQ?----------"<< endl;
+        if (!areEqual(data_vec, decoded_vec_bic, true)) {
+         return 1;
+        }
+
+        //cout << "Padded:" << pad_till_success(data_vec) << '\n';
+        areEqual(data_vec, decoded_vec_bic, true);
     //}
-    restart_param(3,10);
-    //check param
-    if (2*size_m >= size_k) {
-        cout << "K and M is invalid"<< endl;
-        cin;
-    }
-   //unsigned long num_i = ((size_n)+(2*size_k-size_beta)-1)/(2*size_k-size_beta);
-    encode_bic();
-    decode_bic();
-
-    cout << "----------------"<< endl;
-    cout << "size_DATA: " <<size_n<< endl;
-    cout << "size_beta: " <<size_beta<< endl;
-    cout << "K: " <<size_k<< endl;
-    cout << "m: " <<size_m<< endl;
-    //cout << "need to be oligo num: " <<num_i<< endl;
-    cout << "----------ORIGINAL----------"<< endl;
-    printVectorBool(data_vec);
-    printNucVectorBool(data_vec);
-    cout << "---------------------------"<< endl;
-    for (int l=0; l<result_vec_bic.size(); l++) {
-        cout << "i is: "<<result_vec_bic[l].first << endl;
-        cout << "vec is: " << endl;
-        printVectorBool(result_vec_bic[l].second);
-        printNucVectorBool(result_vec_bic[l].second);
-    }
-
-    cout << "----------DECODE----------"<< endl;
-    printVectorBool(decoded_vec_bic);
-    printNucVectorBool(decoded_vec_bic);
-
-    cout << "----------EQ??----------"<< endl;
-    areEqual(data_vec, decoded_vec_bic, true);
-
-    cout << "Padded:" << pad_till_success(data_vec);
-    areEqual(data_vec, decoded_vec_bic, true);
-
     return 0;
 }
