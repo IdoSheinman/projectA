@@ -211,9 +211,8 @@ bool add_dummy_bits() {
     return dummy_arr[counter % 8];
 }
 int encode_bic () {
-    int oligo_num=1, temp_d;
-    bool do_loop = true;
-    int rest = signed(data_vec.size()-i_e);
+    int oligo_num=1;
+    int rest;
 
     while (!used_all_data) {
         i_e= i_s + 2*size_k-size_beta-1;
@@ -235,22 +234,6 @@ int encode_bic () {
         }
     }
 
-    /*if (rest>0) {
-        add_dummy_bits(2*size_k-rest);
-        i_e = static_cast<int>(size_n) - size_beta - 1; //???
-        vector<bool> oligo(2*size_k-size_beta);//check???
-        // Add the pair (i, oligo) to result_vec
-        result_vec_bic.emplace_back(oligo_num, oligo);
-
-        if (!copy_data_without_Q(oligo_num)) {
-            i_s=i_e + 1 + add_bbic_bit(oligo_num);
-        }
-        else {
-            return 1;
-        }
-
-    }
-*/
     return 0;
 }
 
