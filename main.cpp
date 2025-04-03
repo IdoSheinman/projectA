@@ -332,6 +332,36 @@ int pad_till_success(vector<bool> data) {
     return counter;
 }
 
+
+// WIP
+int encode_bbic () {
+    int oligo_num=1;
+    int rest;
+
+    while (!used_all_data) {
+        i_e= i_s + 2*size_k-size_beta-1;
+        vector<bool> oligo(2*size_k-size_beta);
+        // Add the pair (i, oligo) to result_vec
+        result_vec_bic.emplace_back(oligo_num, oligo);
+
+        if (!copy_data_without_Q(oligo_num)) {
+            int added = add_bbic_bit(oligo_num);
+            i_s=i_e + 1 + added;
+        }
+        else {
+            return 1;
+        }
+        oligo_num++;
+        rest = signed(data_vec.size()-i_s);
+        if (rest<=0) {
+            used_all_data = true;
+        }
+    }
+
+    return 0;
+}
+
+
 int main() {
     //data_vec = vector<bool>(36, false);
    // data_vec.insert(data_vec.begin(), 1, true); 0,0, 0 ,1, 1 ,0 ,1, 1 ,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,
