@@ -1,40 +1,23 @@
-/*
- * This code is based on chatGPT. But it implements a completely standard LDPC
- * code and there is no novel or original ideas in it that may be traced to a specific
- * source chatGPT was trained on probably.
- */
+/// Note this code was created by Gemini.
+/// It should handle ldpc encoding / decoding
+#include "ldpc.h"
+
 #include <iostream>
 #include <vector>
-#include <numeric>   // For std::accumulate (optional, can use loops)
-#include <algorithm> // For std::all_of, std::max_element, std::find
-#include <iterator>  // For std::distance
-#include <stdexcept> // For std::invalid_argument (optional error check)
-#include <utility>   // For std::pair
+#include <numeric>
+#include <algorithm>
+#include <iterator>
+#include <stdexcept>
+#include <utility> // For std::pair
+#include <string> // For std::string
+#include <random> // For potential random message generation
 
-// --- Define Code Parameters ---
-const int M = 3; // Number of parity checks (rows in H)
-const int N = 6; // Codeword length (columns in H, columns in G)
-const int K = 3; // Message length (rows in G) (N - M for this systematic code)
+// --- Define Code Parameters (Larger Example) ---
+const int K = 8;
+const int M = 4;
+const int N = 12; // N = K + M
 
-// --- Matrix and Vector Definitions ---
-
-// H (Parity-Check Matrix, MxN)
-const Matrix H_example = {
-    {1, 1, 0, 1, 0, 0},
-    {0, 1, 1, 0, 1, 0},
-    {1, 0, 1, 0, 0, 1}
-};
-
-// G (Generator Matrix, KxN)
-const Matrix G_example = {
-    {1, 0, 0, 1, 0, 1},
-    {0, 1, 0, 1, 1, 0},
-    {0, 0, 1, 0, 1, 1}
-};
-
-// --- Helper Functions ---
-
-// Function to print a vector
+// --- Helper Functions (Printing, Math - vec_mat_mult_mod2 corrected) ---
 void print_vector(const std::string& name, const Vec& vec) {
     std::cout << name << ": [";
     for (size_t i = 0; i < vec.size(); ++i) {
@@ -43,38 +26,38 @@ void print_vector(const std::string& name, const Vec& vec) {
     std::cout << "]" << std::endl;
 }
 
-// Function to print a matrix
 void print_matrix(const std::string& name, const Matrix& matrix) {
-    if (matrix.empty()) {
-        std::cout << name << " (empty)" << std::endl;
-        return;
-    }
-    size_t rows = matrix.size();
-    size_t cols = matrix[0].size();
-    std::cout << name << " (" << rows << "x" << cols << "):" << std::endl;
-    for (size_t i = 0; i < rows; ++i) {
-        std::cout << "  [";
-        for (size_t j = 0; j < cols; ++j) {
-            std::cout << matrix[i][j] << (j == cols - 1 ? "" : ", ");
-        }
-        std::cout << "]" << std::endl;
-    }
-}
+     if (matrix.empty()) { std::cout << name << " (empty)" << std::endl; return; }
+     size_t rows = matrix.size();
+     size_t cols = (rows > 0 && !matrix[0].empty()) ? matrix[0].size() : 0;
+     std::cout << name << " (" << rows << "x" << cols << "):" << std::endl;
+     for (size_t i = 0; i < rows; ++i) {
+         std::cout << "  [";
+         size_t current_cols = matrix[i].size();
+         for (size_t j = 0; j < current_cols; ++j) {
+             std::cout << matrix[i][j] << (j == current_cols - 1 ? "" : ", ");
+         }
+         std::cout << "]" << std::endl;
+     }
+ }
 
 // Multiply vector (row) by matrix: result = vec * matrix (mod 2)
 // vec size = matrix rows, result size = matrix cols
 Vec vec_mat_mult_mod2(const Vec& vec, const Matrix& matrix) {
     if (matrix.empty()) return {};
     size_t matrix_rows = matrix.size();
+    if (matrix_rows == 0) return {};
     size_t matrix_cols = matrix[0].size();
     if (vec.size() != matrix_rows) {
-        throw std::invalid_argument("Vector size must match matrix rows for vec*mat multiplication.");
+         throw std::invalid_argument("vec_mat_mult_mod2: Vector size (" + std::to_string(vec.size()) +
+                                    ") must match matrix rows (" + std::to_string(matrix_rows) + ").");
     }
 
     Vec result(matrix_cols, 0);
-    for (size_t j = 0; j < matrix_cols; ++j) {
+    for (size_t j = 0; j < matrix_cols; ++j) { // Iterate over columns of matrix (output vector elements)
         int sum = 0;
-        for (size_t i = 0; i < matrix_rows; ++i) {
+        for (size_t i = 0; i < matrix_rows; ++i) { // Iterate over rows of matrix (vector elements)
+            // ** CORRECTED INDEXING **
             sum += vec[i] * matrix[i][j];
         }
         result[j] = sum % 2;
@@ -82,20 +65,23 @@ Vec vec_mat_mult_mod2(const Vec& vec, const Matrix& matrix) {
     return result;
 }
 
+
 // Multiply matrix by vector (column): result = matrix * vec (mod 2)
 // matrix cols = vec size, result size = matrix rows
 Vec mat_vec_mult_mod2(const Matrix& matrix, const Vec& vec) {
     if (matrix.empty()) return {};
     size_t matrix_rows = matrix.size();
+     if (matrix_rows == 0) return {};
     size_t matrix_cols = matrix[0].size();
      if (vec.size() != matrix_cols) {
-        throw std::invalid_argument("Vector size must match matrix columns for mat*vec multiplication.");
-    }
+          throw std::invalid_argument("mat_vec_mult_mod2: Vector size (" + std::to_string(vec.size()) +
+                                     ") must match matrix columns (" + std::to_string(matrix_cols) + ").");
+     }
 
     Vec result(matrix_rows, 0);
-    for (size_t i = 0; i < matrix_rows; ++i) {
+    for (size_t i = 0; i < matrix_rows; ++i) { // Iterate over rows of matrix (output vector elements)
         int sum = 0;
-        for (size_t j = 0; j < matrix_cols; ++j) {
+        for (size_t j = 0; j < matrix_cols; ++j) { // Iterate over columns of matrix (vector elements)
             sum += matrix[i][j] * vec[j];
         }
         result[i] = sum % 2;
@@ -103,191 +89,173 @@ Vec mat_vec_mult_mod2(const Matrix& matrix, const Vec& vec) {
     return result;
 }
 
-// --- LDPC Encoding ---
-Vec encode(const Vec& message, const Matrix& G) {
-    if (message.size() != G.size()) {
-         throw std::invalid_argument("Message length must match Generator matrix rows.");
-    }
-    std::cout << "\n--- Encoding ---" << std::endl;
-    print_vector("Input Message (k)", message);
-    Vec codeword = vec_mat_mult_mod2(message, G);
-    print_vector("Encoded Codeword (n)", codeword);
-    return codeword;
-}
 
-// --- LDPC Verification (Checks if H*c^T == 0) ---
-// Returns pair: {is_valid, syndrome_vector}
-std::pair<bool, Vec> verify(const Matrix& H, const Vec& codeword) {
-     if (codeword.size() != H[0].size()) {
-        throw std::invalid_argument("Codeword length must match Parity Check matrix columns.");
-     }
-     Vec syndrome = mat_vec_mult_mod2(H, codeword);
-     bool is_valid = std::all_of(syndrome.begin(), syndrome.end(), [](int s){ return s == 0; });
-     return {is_valid, syndrome};
-}
-
-
-// --- LDPC Bit-Flipping Decoder ---
-// Returns pair: {decoded_vector_attempt, success_flag}
+// --- Bit-Flipping Decoder (Unchanged) ---
 std::pair<Vec, bool> decode_bit_flipping(const Matrix& H, const Vec& received_vector, int max_iterations) {
     if (H.empty() || received_vector.size() != H[0].size()) {
-         throw std::invalid_argument("Invalid H matrix or received vector size.");
+         throw std::invalid_argument("Invalid H matrix or received vector size for decoder.");
     }
-    size_t n_bits = received_vector.size();
-    size_t m_checks = H.size();
-
-    Vec current_vector = received_vector; // Work on a copy
-
-    std::cout << "\n--- Starting Bit-Flipping Decoder ---" << std::endl;
-    print_vector("Initial Received Vector", current_vector);
+    size_t n_bits = received_vector.size(); size_t m_checks = H.size();
+    Vec current_vector = received_vector;
 
     for (int iter = 0; iter < max_iterations; ++iter) {
-        std::cout << "\n--- Iteration " << iter + 1 << " ---" << std::endl;
-
-        // 1. Calculate Syndrome
         Vec syndrome = mat_vec_mult_mod2(H, current_vector);
-        print_vector("Syndrome (s = H*y^T)", syndrome);
-
-        // 2. Check for Success (Syndrome is all zero?)
         if (std::all_of(syndrome.begin(), syndrome.end(), [](int s){ return s == 0; })) {
-            std::cout << "Syndrome is zero. Decoding successful!" << std::endl;
-            return {current_vector, true}; // Success
+            return {current_vector, true};
         }
-
-        // 3 & 4. Count Votes for Unsatisfied Checks
-        Vec flip_counts(n_bits, 0); // Counts how many unsatisfied checks each bit participates in
-        std::cout << "Unsatisfied checks (indices): [";
-        bool first_unsat = true;
-        for (size_t i = 0; i < m_checks; ++i) { // Iterate through checks (rows of H)
-            if (syndrome[i] == 1) { // If check 'i' is unsatisfied
-                 if (!first_unsat) std::cout << ", ";
-                 std::cout << i;
-                 first_unsat = false;
-                // Add votes to bits involved in this check
-                for (size_t j = 0; j < n_bits; ++j) { // Iterate through bits (columns of H)
-                    if (H[i][j] == 1) {
-                        flip_counts[j]++;
-                    }
+        Vec flip_counts(n_bits, 0);
+        int total_unsatisfied = 0;
+        for (size_t i = 0; i < m_checks; ++i) {
+            if (syndrome[i] == 1) {
+                 total_unsatisfied++;
+                for (size_t j = 0; j < n_bits; ++j) {
+                    if (H[i][j] == 1) flip_counts[j]++;
                 }
             }
         }
-        std::cout << "]" << std::endl;
-        print_vector("Flip Counts (votes per bit)", flip_counts);
-
-        // 5. Find Bit(s) with Maximum Votes
+        if(total_unsatisfied == 0) { // Should not happen if syndrome not zero, but safety check
+             return {current_vector, false}; // Stuck
+        }
         int max_count = 0;
-        if (!flip_counts.empty()) {
-             max_count = *std::max_element(flip_counts.begin(), flip_counts.end());
-        }
-
-
+        if (!flip_counts.empty()) max_count = *std::max_element(flip_counts.begin(), flip_counts.end());
         if (max_count == 0) {
-            // Should not happen if syndrome is non-zero and H is valid,
-            // but good to check. Indicates algorithm is stuck.
-            std::cout << "No bit participates significantly in unsatisfied checks (max_count=0). Cannot proceed." << std::endl;
-            return {current_vector, false}; // Failed
+            return {current_vector, false}; // Failed - no bit helps
         }
-
-        // Find the *first* bit index with the maximum count
-        int bit_to_flip = -1;
-        auto it = std::find(flip_counts.begin(), flip_counts.end(), max_count);
-        if (it != flip_counts.end()) {
-            bit_to_flip = std::distance(flip_counts.begin(), it);
-        }
-
-        // Print all candidates (optional but informative)
-        std::cout << "Highest count is " << max_count << " for bit(s): [";
-        bool first_max = true;
-        for(size_t j = 0; j < n_bits; ++j) {
-            if (flip_counts[j] == max_count) {
-                if (!first_max) std::cout << ", ";
-                std::cout << j;
-                first_max = false;
-            }
-        }
-        std::cout << "]" << std::endl;
-
-        if (bit_to_flip == -1) { // Should technically not happen if max_count > 0
-             std::cerr << "Error: Could not find index for max_count." << std::endl;
-             return {current_vector, false};
-        }
-
-
-        // 6. Flip the Selected Bit
-        std::cout << "Flipping bit at index: " << bit_to_flip << std::endl;
-        current_vector[bit_to_flip] = 1 - current_vector[bit_to_flip]; // Flip 0 to 1 or 1 to 0
-        print_vector("Current vector after flip", current_vector);
-
-    } // End of iteration loop
-
-    // 7. Termination (Max iterations reached without success)
-    std::cout << "\nMaximum iterations (" << max_iterations << ") reached. Decoding failed." << std::endl;
-    return {current_vector, false}; // Failed
+        int bit_to_flip = std::distance(flip_counts.begin(), std::find(flip_counts.begin(), flip_counts.end(), max_count));
+        current_vector[bit_to_flip] = 1 - current_vector[bit_to_flip];
+    }
+    Vec final_syndrome = mat_vec_mult_mod2(H, current_vector);
+    bool success = std::all_of(final_syndrome.begin(), final_syndrome.end(), [](int s){ return s == 0; });
+    return {current_vector, success};
 }
 
+
+// --- Algorithm 5 Adaptation (Encoding - Unchanged Flow) ---
+Vec algorithm5_encode_simple(const Vec& message, const Matrix& G) {
+    // std::cout << "\n--- Algorithm 5 (Encoding Adaptation) ---" << std::endl;
+    // print_vector("Input message (x, K=" + std::to_string(message.size()) + ")", message);
+    if (message.size() != K) {
+        throw std::invalid_argument("Algorithm 5: Input message length incorrect.");
+    }
+    // std::cout << "Step 1: Obtain message oligos (Skipped B-BIC)" << std::endl;
+    // std::cout << "Step 2: LDPC Encode (Simplified: c = message * G)" << std::endl;
+    Vec codeword = vec_mat_mult_mod2(message, G);
+    // std::cout << "Step 3-12: Skipped steps related to B-BIC/RSB/GC" << std::endl;
+    // std::cout << "Step 13: Obtain final codeword" << std::endl;
+    print_vector("Encoded Codeword (N=" + std::to_string(codeword.size()) + ")", codeword);
+    return codeword;
+}
+
+// --- Algorithm 6 Adaptation (Decoding - Includes message recovery) ---
+std::pair<Vec, bool> algorithm6_decode_simple(const Vec& received_codeword, const Matrix& H, int max_iterations) {
+    // std::cout << "\n--- Algorithm 6 (Decoding Adaptation) ---" << std::endl;
+    print_vector("Input received codeword (N=" + std::to_string(received_codeword.size()) + ")", received_codeword);
+     if (received_codeword.size() != N) {
+        throw std::invalid_argument("Algorithm 6: Received codeword length incorrect.");
+    }
+
+    // std::cout << "Initialization (Skipped d''_j)" << std::endl;
+    // std::cout << "Steps 1-8: Perform LDPC decoding (Simplified)" << std::endl;
+    std::pair<Vec, bool> decoding_result = decode_bit_flipping(H, received_codeword, max_iterations);
+    Vec& estimated_codeword = decoding_result.first;
+    bool ldpc_success = decoding_result.second;
+
+    Vec final_syndrome = mat_vec_mult_mod2(H, estimated_codeword);
+    bool is_valid_codeword = std::all_of(final_syndrome.begin(), final_syndrome.end(), [](int s){ return s == 0; });
+
+    if (!ldpc_success || !is_valid_codeword) {
+        // std::cout << "Step 9/10: LDPC Decoding FAILED or result is not a valid codeword. Cannot recover message." << std::endl;
+        // print_vector("Final codeword state", estimated_codeword);
+        // print_vector("Resulting Syndrome", final_syndrome);
+        return {{}, false};
+    }
+
+    // std::cout << "Step 9: Obtain estimated message oligos (from successfully decoded codeword)" << std::endl;
+    // print_vector("Estimated Corrected Codeword (ĉ_j)", estimated_codeword);
+
+    // --- FINAL STEP: DECODE ORIGINAL MESSAGE ---
+    // std::cout << "Step 10: Decode Original Message (Extract first K=" << K << " bits due to systematic G)" << std::endl;
+    if (estimated_codeword.size() < K) {
+         std::cerr << "Error: Estimated codeword too short (" << estimated_codeword.size() << ") to extract message!" << std::endl;
+         return {{}, false};
+    }
+    // Because G = [I_k | P^T], the first K bits of the codeword are the message bits
+    Vec decoded_message(estimated_codeword.begin(), estimated_codeword.begin() + K);
+
+    // print_vector(">>> Decoded Original Message (x) <<<", decoded_message);
+    return {decoded_message, true};
+}
 
 // --- Main Program ---
-int main() {
-    Vec message = {1, 0, 1};
-    Vec codeword;
-    Vec codeword_with_error;
-    Vec decoded_codeword;
-    std::pair<bool, Vec> verification_result;
-
-    // --- Demonstrate Encoding ---
-    print_matrix("H Matrix", H_example);
-    print_matrix("G Matrix", G_example);
-    codeword = encode(message, G_example);
-
-    // --- Verify the Original Codeword ---
-    std::cout << "\n--- Verifying Original Codeword ---" << std::endl;
-    print_vector("Original Codeword", codeword);
-    verification_result = verify(H_example, codeword);
-    print_vector("Syndrome (H*c^T)", verification_result.second);
-    std::cout << "Is original codeword valid? " << (verification_result.first ? "Yes" : "No") << std::endl;
-
-
-    // --- Introduce an Error ---
-    std::cout << "\n--- Introducing Error ---" << std::endl;
-    codeword_with_error = codeword; // Copy
-    int error_pos = 2;
-    if (error_pos >= 0 && error_pos < N) {
-        codeword_with_error[error_pos] = 1 - codeword_with_error[error_pos]; // Flip bit
-    }
-    print_vector("Codeword with error", codeword_with_error);
-
-    // --- Verify the Erroneous Codeword ---
-     std::cout << "\n--- Verifying Erroneous Codeword ---" << std::endl;
-    verification_result = verify(H_example, codeword_with_error);
-    print_vector("Syndrome (H*c^T)", verification_result.second);
-    std::cout << "Is erroneous codeword valid? " << (verification_result.first ? "Yes" : "No") << std::endl;
-
-
-    // --- Attempt to Decode/Correct the Error ---
-    int max_iter = 5;
-    std::pair<Vec, bool> decoding_result = decode_bit_flipping(H_example, codeword_with_error, max_iter);
-    decoded_codeword = decoding_result.first;
-    bool success = decoding_result.second;
-
-
-    // --- Check Decoding Result ---
-    std::cout << "\n--- Decoding Result ---" << std::endl;
-    print_vector("Final Decoded Vector", decoded_codeword);
-    if (success) {
-        std::cout << "Decoding reported SUCCESS." << std::endl;
-        // Optional: Compare with original codeword
-        if (decoded_codeword == codeword) {
-            std::cout << "Corrected vector matches the original codeword." << std::endl;
-        } else {
-             // This could happen if BF converges to a different valid codeword
-             std::cout << "Warning: Decoded vector is valid but differs from original." << std::endl;
-        }
-    } else {
-        std::cout << "Decoding reported FAILURE." << std::endl;
-         // Verify the final state again
-        verification_result = verify(H_example, decoded_codeword);
-        print_vector("Syndrome of final vector", verification_result.second);
-    }
-
-    return 0; // Indicate successful execution
-}
+// int main() {
+//     Vec message = {1, 0, 1, 1, 0, 0, 1, 0}; // K=8
+//
+//     Vec codeword;
+//     Vec codeword_with_error;
+//     Vec final_decoded_message;
+//
+//     std::cout << "LDPC Parameters: K=" << K << ", M=" << M << ", N=" << N << std::endl;
+//     print_matrix("H Matrix", H_example);
+//     print_matrix("G Matrix", G_example);
+//
+//     // --- Encoding ---
+//     codeword = algorithm5_encode_simple(message, G_example);
+//
+//     // --- Verify H * c^T = 0 for original ---
+//     Vec check_syndrome = mat_vec_mult_mod2(H_example, codeword);
+//     print_vector("\nSyndrome Check for Original Codeword", check_syndrome);
+//     bool original_valid = std::all_of(check_syndrome.begin(), check_syndrome.end(), [](int s){ return s == 0; });
+//     if (!original_valid) {
+//         std::cerr << "ERROR: Original codeword FAILED syndrome check! H/G matrices likely inconsistent." << std::endl;
+//     } else {
+//          std::cout << "Original codeword PASSED syndrome check." << std::endl;
+//     }
+//
+//     // --- Introduce Error(s) ---
+//     std::cout << "\n--- Introducing Error(s) ---" << std::endl;
+//     codeword_with_error = codeword;
+//     // --- Try different error positions/counts ---
+//     // int error_pos1 = 6; // Single error
+//     int error_pos1 = 2; // Different single error
+//     // int error_pos1 = 0; // Error in message part
+//     // int error_pos2 = 10; // Error in parity part
+//
+//     std::cout << "Flipping bit at index " << error_pos1 << std::endl;
+//     if (error_pos1 >= 0 && error_pos1 < N) {
+//         codeword_with_error[error_pos1] = 1 - codeword_with_error[error_pos1];
+//     }
+//     // Uncomment to add a second error
+//     // std::cout << "Flipping bit at index " << error_pos2 << std::endl;
+//     // if (error_pos2 >= 0 && error_pos2 < N && error_pos1 != error_pos2) {
+//     //     codeword_with_error[error_pos2] = 1 - codeword_with_error[error_pos2];
+//     // }
+//     print_vector("Codeword with error(s)", codeword_with_error);
+//
+//
+//     // --- Decoding ---
+//     int max_bf_iterations = 25; // Increase iterations slightly for larger code
+//     std::pair<Vec, bool> final_result = algorithm6_decode_simple(codeword_with_error, H_example, max_bf_iterations);
+//     final_decoded_message = final_result.first;
+//     bool success = final_result.second;
+//
+//     // --- Final Result Check ---
+//     std::cout << "\n--- Final Result ---" << std::endl;
+//     if (success) {
+//         std::cout << "Decoding Process SUCCEEDED (Found a valid codeword)." << std::endl;
+//         // Message already printed by Algorithm 6
+//         if (final_decoded_message == message) {
+//             std::cout << ">>> SUCCESS: Decoded message matches original message. <<<" << std::endl;
+//         } else {
+//             // This means decoder converged to a DIFFERENT valid codeword
+//             std::cout << ">>> WARNING: Decoded message does NOT match original message. <<<" << std::endl;
+//             std::cout << "This indicates the bit-flipping decoder found a different valid codeword," << std::endl;
+//             std::cout << "which is a known limitation of simple decoders." << std::endl;
+//             print_vector("Original message ", message);
+//             print_vector("Decoded message", final_decoded_message);
+//         }
+//     } else {
+//         std::cout << ">>> Decoding Process FAILED (Could not find a valid codeword). <<<" << std::endl;
+//     }
+//
+//     return 0;
+// }

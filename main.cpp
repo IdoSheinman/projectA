@@ -23,7 +23,9 @@ int current_vec = 0;
 
 vector<bool> data_vec;
 vector<pair<int, vector<bool> > > result_vec_bic;
+vector<Vec> parity = vector<Vec>();
 vector<bool> decoded_vec_bic;
+vector<vector<bool>> decoded_vec_bic_ldpc;
 int i_s, i_e, size_m, size_k, size_beta;
 unsigned long size_n;
 bool used_all_data;
@@ -295,6 +297,7 @@ int decode_bic() {
 void fill_random_data() {
     // Constants for 0 to 1 MB size in bits
     const size_t MAX_BITS = 128 * 8 * 8; // 1 KB in bits
+    // const size_t MAX_BITS = 8 * 8 * 8; // 1 KB in bits
 
     // Seed random number generator
     random_device rd; // Random device for seed
@@ -427,6 +430,122 @@ int decode_bbic() {
 }
 
 
+
+
+// Algo 5-6
+int encode_ldpc() {
+    Vec par_1;
+    Vec par_2;
+    Vec par_3;
+    Vec par_4;
+    for (int i = 0; i < result_vec_bic.size(); i += 8) {
+        int p = 8;
+        if (result_vec_bic.size() - i < 8) {
+            p = result_vec_bic.size() - i;
+        }
+
+        par_1 = {0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0}; // K=8
+        par_2 = {0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0}; // K=8
+        par_3 = {0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0}; // K=8
+        par_4 = {0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0}; // K=8
+
+        for (int j = 0; j < 26; j++) {
+            Vec word = {0, 0, 0, 0, 0, 0, 0, 0}; // K=8
+            for (int k = 0; k < p; k++) {
+               word[k] = result_vec_bic[i+k].second[j];
+            }
+            Vec tmp = algorithm5_encode_simple(word, G_example);
+            par_1[j]= tmp[8];
+            par_2[j] = tmp[9];
+            par_3[j] = tmp[10];
+            par_4[j] = tmp[11];
+        }
+        parity.emplace_back(par_1);
+        parity.emplace_back(par_2);
+        parity.emplace_back(par_3);
+        parity.emplace_back(par_4);
+    }
+
+    return 0;
+}
+
+int decode_bbic_ldpc() {
+    decoded_vec_bic = vector<bool>();
+    for (int i=0; i<decoded_vec_bic_ldpc.size(); i++) {
+        int kbt_idx =
+              (decoded_vec_bic_ldpc[i][0] << 5) +
+              (decoded_vec_bic_ldpc[i][1] << 4) +
+              (decoded_vec_bic_ldpc[i][2] << 3) +
+              (decoded_vec_bic_ldpc[i][3] << 2) +
+              (decoded_vec_bic_ldpc[i][4] << 1) +
+              (decoded_vec_bic_ldpc[i][5] << 0);
+        for (int j = 6; j <= 6 + kbt_idx; j += 2) {
+            decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
+        }
+        decoded_vec_bic_ldpc[i].erase(decoded_vec_bic_ldpc[i].begin(),decoded_vec_bic_ldpc[i].begin() + 6);
+
+        for (int k = 0; k < result_vec_bic.size(); k++) {
+            if (result_vec_bic[k].first == i) {
+                result_vec_bic[k].second = decoded_vec_bic_ldpc[i];
+                break;
+            }
+        }
+        take_data_without_Q(result_vec_bic[i].first);
+        add_Q_data(result_vec_bic[i].first);
+    }
+    return 0;
+}
+
+
+int decode_ldpc() {
+    bool tmp[8][26] = {false} ;
+    for (int i = 0; i < result_vec_bic.size(); i += 8) {
+        tmp[8][26] = {false} ;
+
+        int p = 8;
+        if (result_vec_bic.size() - i < 8) {
+            p = result_vec_bic.size() - i;
+        }
+        for (int j = 0; j < 26; j++) {
+            Vec word = {0, 0, 0, 0, 0, 0, 0, 0,    0,0,0,0}; // K=8
+            for (int k = 0; k < p; k++) {
+                word[k] = result_vec_bic[i+k].second[j];
+            }
+            for (int k = 0; k < 4; k++) {
+                word[8 + k] = parity[k+4*i/8][j];
+            }
+            Vec t = algorithm6_decode_simple(word, H_example, 5).first;
+            if (t.size() == 0) {
+                cout << "Failed to decode" << endl;
+                return 0;
+            }
+            for (int k = 0; k < 8; k++) {
+                tmp[k][j] = t[k];
+            }
+        }
+        for (int j = 0; j < p; j++) {
+            vector<bool> tmp_vec(26, false);
+            for (int k = 0; k < 26; k++) {
+                tmp_vec[k] = tmp[j][k];
+            }
+            decoded_vec_bic_ldpc.emplace_back(tmp_vec);
+        }
+    }
+    return 0;
+}
+
 int main() {
     //data_vec = vector<bool>(36, false);
     // data_vec.insert(data_vec.begin(), 1, true); 0,0, 0 ,1, 1 ,0 ,1, 1 ,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,
@@ -456,11 +575,14 @@ int main() {
         }
         //unsigned long num_i = ((size_n)+(2*size_k-size_beta)-1)/(2*size_k-size_beta);
         encode_bbic();
+        encode_ldpc();
+        decode_ldpc();
         for (int i = 0; i < result_vec_bic.size(); i++) {
             printNucVectorBool(result_vec_bic[i].second);
         }
         // decode_bic();
-        decode_bbic();
+        decode_bbic_ldpc();
+       // decode_bbic();
         cout << "----------------" << endl;
         cout << "size_DATA: " << size_n << endl;
         cout << "size_beta: " << size_beta << endl;
