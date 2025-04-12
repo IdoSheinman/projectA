@@ -306,7 +306,7 @@ void fill_random_data() {
     uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
 
     // Generate a random size
-    size_t random_size = size_dist(gen);
+    size_t random_size = 128*8*8*3;//size_dist(gen);
 
     // Resize the vector
     data_vec.resize(random_size);
@@ -432,6 +432,7 @@ int decode_bbic() {
 
 
 
+int IGNORED_POSITIONS[] = {6, 10, 14, 18};
 // Algo 5-6
 int encode_ldpc() {
     Vec par_1;
@@ -462,16 +463,30 @@ int encode_ldpc() {
         0, 0}; // K=8
 
         for (int j = 0; j < 26; j++) {
+            bool ignored = false;
             Vec word = {0, 0, 0, 0, 0, 0, 0, 0}; // K=8
             for (int k = 0; k < p; k++) {
                word[k] = result_vec_bic[i+k].second[j];
             }
-            Vec tmp = algorithm5_encode_simple(word, G_example);
-            par_1[j]= tmp[8];
-            par_2[j] = tmp[9];
-            par_3[j] = tmp[10];
-            par_4[j] = tmp[11];
+            Vec encoded_data = algorithm5_encode_simple(word, G_example);
+            for (int k = 0; k < size(IGNORED_POSITIONS); k++) {
+                if (j == IGNORED_POSITIONS[k]) {
+                    ignored = true;
+                }
+            }
+            if (ignored) {
+                par_1[j] = !par_1[j-2];
+                par_2[j] = !par_2[j-2];
+                par_3[j] = !par_3[j-2];
+                par_4[j] = !par_4[j-2];
+            } else {
+                par_1[j]= encoded_data[8];
+                par_2[j] = encoded_data[9];
+                par_3[j] = encoded_data[10];
+                par_4[j] = encoded_data[11];
+            }
         }
+
         parity.emplace_back(par_1);
         parity.emplace_back(par_2);
         parity.emplace_back(par_3);
@@ -510,9 +525,8 @@ int decode_bbic_ldpc() {
 
 
 int decode_ldpc() {
-    bool tmp[8][26] = {false} ;
     for (int i = 0; i < result_vec_bic.size(); i += 8) {
-        tmp[8][26] = {false} ;
+        bool tmp[8][26] = {false} ;
 
         int p = 8;
         if (result_vec_bic.size() - i < 8) {
@@ -527,13 +541,26 @@ int decode_ldpc() {
                 word[8 + k] = parity[k+4*i/8][j];
             }
             Vec t = algorithm6_decode_simple(word, H_example, 5).first;
+
             if (t.size() == 0) {
                 cout << "Failed to decode" << endl;
                 return 0;
             }
             for (int k = 0; k < 8; k++) {
-                tmp[k][j] = t[k];
+                bool is_ignored = false;
+                for (int pos : IGNORED_POSITIONS) {
+                    if (pos == j) {
+                        is_ignored = true;
+                        break;
+                    }
+                }
+                if (!is_ignored) {
+                    tmp[k][j] = t[k];
+                } else {
+                    tmp[k][j] = word[k];
+                }
             }
+            continue2:;
         }
         for (int j = 0; j < p; j++) {
             vector<bool> tmp_vec(26, false);
@@ -575,11 +602,33 @@ int main() {
         }
         //unsigned long num_i = ((size_n)+(2*size_k-size_beta)-1)/(2*size_k-size_beta);
         encode_bbic();
-        encode_ldpc();
-        decode_ldpc();
+
+        cout <<endl<<endl<<endl<<endl;
+        cout << "DATA" << endl;
+        cout <<endl<<endl<<endl<<endl;
+
         for (int i = 0; i < result_vec_bic.size(); i++) {
             printNucVectorBool(result_vec_bic[i].second);
         }
+
+        encode_ldpc();
+        cout <<endl<<endl<<endl<<endl;
+        cout << "PARITY:" << endl;
+        cout <<endl<<endl<<endl<<endl;
+
+        for (int i = 0; i < size(parity); i++) {
+            vector<bool> v = {0, 0, 0, 0, 0, 0, 0, 0,
+                              0, 0, 0, 0, 0, 0, 0, 0,
+                              0, 0, 0, 0, 0, 0, 0, 0,
+                              0, 0}; // K=8
+
+            for (int j = 0; j < 26; j++) {
+                v[j] = parity[i][j];
+            }
+            printNucVectorBool(v);
+        }
+        decode_ldpc();
+
         // decode_bic();
         decode_bbic_ldpc();
        // decode_bbic();
@@ -589,20 +638,22 @@ int main() {
         cout << "K: " << size_k << endl;
         cout << "m: " << size_m << endl;
         //cout << "need to be oligo num: " <<num_i<< endl;
-        cout << "----------ORIGINAL----------" << endl;
-        printVectorBool(data_vec);
-        printNucVectorBool(data_vec);
-        cout << "---------------------------" << endl;
-        /*for (int l=0; l<result_vec_bic.size(); l++) {
-            cout << "i is: "<<result_vec_bic[l].first << endl;
-            cout << "vec is: " << endl;
-            printVectorBool(result_vec_bic[l].second);
-            printNucVectorBool(result_vec_bic[l].second);
-        }*/
 
-        cout << "----------DECODE----------" << endl;
-        printVectorBool(decoded_vec_bic);
-        printNucVectorBool(decoded_vec_bic);
+        // cout << "----------ORIGINAL----------" << endl;
+        // printVectorBool(data_vec);
+        // printNucVectorBool(data_vec);
+        // cout << "---------------------------" << endl;
+
+        // for (int l=0; l<result_vec_bic.size(); l++) {
+        //     cout << "i is: "<<result_vec_bic[l].first << endl;
+        //     cout << "vec is: " << endl;
+        //     printVectorBool(result_vec_bic[l].second);
+        //     printNucVectorBool(result_vec_bic[l].second);
+        // }
+
+        // cout << "----------DECODE----------" << endl;
+        // printVectorBool(decoded_vec_bic);
+        // printNucVectorBool(decoded_vec_bic);
 
         cout << "----------EQ?----------" << endl;
         if (!areEqual(data_vec, decoded_vec_bic, true)) {
