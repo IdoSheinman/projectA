@@ -391,6 +391,7 @@ int encode_bbic() {
         // Add the pair (i, oligo) to result_vec
         result_vec_bic.emplace_back(oligo_num, oligo);
         if (!copy_data_without_Q(oligo_num)) {
+            // TODO: Change order
             int added = add_bbic_bit(oligo_num);
             knuth_balance(oligo_num);
             i_s = i_e + 1 + added;

@@ -142,14 +142,14 @@ Vec algorithm5_encode_simple(const Vec& message, const Matrix& G) {
     Vec codeword = vec_mat_mult_mod2(message, G);
     // std::cout << "Step 3-12: Skipped steps related to B-BIC/RSB/GC" << std::endl;
     // std::cout << "Step 13: Obtain final codeword" << std::endl;
-    print_vector("Encoded Codeword (N=" + std::to_string(codeword.size()) + ")", codeword);
+//    print_vector("Encoded Codeword (N=" + std::to_string(codeword.size()) + ")", codeword);
     return codeword;
 }
 
 // --- Algorithm 6 Adaptation (Decoding - Includes message recovery) ---
 std::pair<Vec, bool> algorithm6_decode_simple(const Vec& received_codeword, const Matrix& H, int max_iterations) {
     // std::cout << "\n--- Algorithm 6 (Decoding Adaptation) ---" << std::endl;
-    print_vector("Input received codeword (N=" + std::to_string(received_codeword.size()) + ")", received_codeword);
+//    print_vector("Input received codeword (N=" + std::to_string(received_codeword.size()) + ")", received_codeword);
      if (received_codeword.size() != N) {
         throw std::invalid_argument("Algorithm 6: Received codeword length incorrect.");
     }
