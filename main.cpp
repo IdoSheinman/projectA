@@ -30,6 +30,7 @@ int i_s, i_e, size_m, size_k, size_beta;
 unsigned long size_n;
 bool used_all_data;
 int counter;
+int kb_idxs[8];
 
 bool add_dummy_bits();
 
@@ -91,11 +92,21 @@ int restart_param(int m, int k) {
     i_e = 0;
     used_all_data = false;
     counter = 0;
+    kb_idxs[0] = 2; // AC
+    kb_idxs[1] = 3; // AG
+    kb_idxs[2] = 6; // TC
+    kb_idxs[3] = 7; // TG
+
+    kb_idxs[4] = 8; // CA
+    kb_idxs[5] = 9; // CT
+    kb_idxs[6] = 12; // GA
+    kb_idxs[7] = 13; // GT
+
     return 0;
 }
 
 int addEmptyItems(std::vector<bool> &result, int m) {
-    for (int i = 2 * m + 1; i <= result.size(); i += 2 * m) {
+    for (int i = 2 * m + 1-4; i <= result.size(); i += 2 * m) {
         result.insert(result.begin() + i, false);
     }
     //result.resize(2*size_k);
@@ -339,6 +350,39 @@ int pad_till_success(vector<bool> data) {
     return counter;
 }
 
+
+int find_best_idx(int idx) {
+    vector<bool> olig = result_vec_bic[idx].second;
+    int scores[8] = {0};
+    for (int i=0; i<8; i++) {
+        vector<bool> tmp_olig;
+        copy(olig.begin(), olig.end(), back_inserter(tmp_olig));
+        for (int j = 0; j < kb_idxs[i]; j+=1) {
+            tmp_olig[j].flip();
+        }
+        int counter = 0;
+        for (int i = 0; i < tmp_olig.size(); i+=2) {
+            if (tmp_olig[i] == 0) {
+                counter += 1;
+            } else {
+                counter -= 1;
+            }
+        }
+        scores[i] = abs(counter);
+    }
+
+
+    int index = 0;
+
+    for(int i = 0; i < 8; i++)
+    {
+        if(scores[i] < scores[index])
+            index = i;
+    }
+    return kb_idxs[index];
+}
+
+
 void knuth_balance(int idx) {
     vector<bool> olig = result_vec_bic[idx].second;
     int zeros = 0;
@@ -367,17 +411,17 @@ void knuth_balance(int idx) {
             break;
         }
     }
-
+    idx_to_balance = find_best_idx(idx);
     for (int i = 0; i <= idx_to_balance; i += 2) {
         result_vec_bic[idx].second[i] = !result_vec_bic[idx].second[i];
     }
 
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), idx_to_balance & 1);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), (idx_to_balance & 2)>>1);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), (idx_to_balance & 4)>>2);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), (idx_to_balance & 8)>>3);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), (idx_to_balance & 16)>>4);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), (idx_to_balance & 32)>>5);
+    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 2)>>1)&1);
+    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 4)>>2)&1);
+    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 8)>>3)&1);
+    // result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 16)>>4)&1);
+    // result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 32)>>5)&1);
 }
 
 // WIP
@@ -391,9 +435,8 @@ int encode_bbic() {
         // Add the pair (i, oligo) to result_vec
         result_vec_bic.emplace_back(oligo_num, oligo);
         if (!copy_data_without_Q(oligo_num)) {
-            // TODO: Change order
-            int added = add_bbic_bit(oligo_num);
             knuth_balance(oligo_num);
+            int added = add_bbic_bit(oligo_num);
             i_s = i_e + 1 + added;
         } else {
             return 1;
@@ -413,19 +456,54 @@ int decode_bbic() {
     // for (auto oligo_vec: result_vec_bic) {
         for (int i=0; i<result_vec_bic.size(); i++) {
             int kbt_idx =
-                  (result_vec_bic[i].second[0] << 5) +
-                  (result_vec_bic[i].second[1] << 4) +
-                  (result_vec_bic[i].second[2] << 3) +
-                  (result_vec_bic[i].second[3] << 2) +
-                  (result_vec_bic[i].second[4] << 1) +
-                  (result_vec_bic[i].second[5] << 0);
-            for (int j = 6; j <= 6 + kbt_idx; j += 2) {
+                  // (result_vec_bic[i].second[0] << 5) |
+                  // (result_vec_bic[i].second[1] << 4) |
+                  (result_vec_bic[i].second[0] << 3) |
+                  (result_vec_bic[i].second[1] << 2) |
+                  (result_vec_bic[i].second[2] << 1) |
+                  (result_vec_bic[i].second[3] << 0);
+
+            int ol_i = result_vec_bic[i].first;
+
+            // take_data_without_Q(result_vec_bic[i].first);
+            auto it = result_vec_bic.begin();
+            for (; it != result_vec_bic.end(); ++it) {
+                if (it->first == ol_i) {
+                    break;
+                }
+            }
+
+            if (it == result_vec_bic.end()) {
+                return 1;
+            }
+            int first_q = 2 * size_m + 1;
+
+
+            // add_Q_data(result_vec_bic[i].first);
+            vector<bool> Q_data = vector<bool>();
+            for (int l = first_q; l <= it->second.size(); l += 2 * size_m) {
+                if (!(is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l))) {
+                    Q_data.insert(Q_data.end(), 1, it->second[l]);
+                }
+            }
+
+            //result_vec_bic[i].second.erase(result_vec_bic[i].second.begin(),result_vec_bic[i].second.begin()+6);
+            for (int j = 4; j <= kbt_idx+4; j += 2) {
                 result_vec_bic[i].second[j] = !result_vec_bic[i].second[j];
             }
-            result_vec_bic[i].second.erase(result_vec_bic[i].second.begin(),result_vec_bic[i].second.begin()+6);
 
-            take_data_without_Q(result_vec_bic[i].first);
-            add_Q_data(result_vec_bic[i].first);
+            // take_data_without_Q(result_vec_bic[i].first);
+            for (int l = 4; l < 2 * size_k + 4; l++) {
+                //TODO: Skip Q
+                if (l < first_q || ((l - first_q) % (2 * size_m) != 0)) {
+                    decoded_vec_bic.insert(decoded_vec_bic.end(), 1, it->second[l]);
+                }
+            }
+
+
+
+            // add_Q_data(result_vec_bic[i].first);
+            decoded_vec_bic.insert(decoded_vec_bic.end(), Q_data.begin(), Q_data.end());
         }
     return 0;
 }
@@ -463,7 +541,7 @@ int encode_ldpc() {
         0, 0, 0, 0, 0, 0, 0, 0,
         0, 0}; // K=8
 
-        for (int j = 0; j < 26; j++) {
+        for (int j = 0; j < 24; j++) {
             bool ignored = false;
             Vec word = {0, 0, 0, 0, 0, 0, 0, 0}; // K=8
             for (int k = 0; k < p; k++) {
@@ -527,13 +605,13 @@ int decode_bbic_ldpc() {
 
 int decode_ldpc() {
     for (int i = 0; i < result_vec_bic.size(); i += 8) {
-        bool tmp[8][26] = {false} ;
+        bool tmp[8][24] = {false} ;
 
         int p = 8;
         if (result_vec_bic.size() - i < 8) {
             p = result_vec_bic.size() - i;
         }
-        for (int j = 0; j < 26; j++) {
+        for (int j = 0; j < 24; j++) {
             Vec word = {0, 0, 0, 0, 0, 0, 0, 0,    0,0,0,0}; // K=8
             for (int k = 0; k < p; k++) {
                 word[k] = result_vec_bic[i+k].second[j];
@@ -564,8 +642,8 @@ int decode_ldpc() {
             continue2:;
         }
         for (int j = 0; j < p; j++) {
-            vector<bool> tmp_vec(26, false);
-            for (int k = 0; k < 26; k++) {
+            vector<bool> tmp_vec(24, false);
+            for (int k = 0; k < 24; k++) {
                 tmp_vec[k] = tmp[j][k];
             }
             decoded_vec_bic_ldpc.emplace_back(tmp_vec);
@@ -583,7 +661,7 @@ int main() {
     //data_vec = {0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0};
     for (int i = 0; i < 1; i++) {
         fill_random_data();
-        //data_vec = {1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0};
+        // data_vec = {1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0};
         size_n = data_vec.size();
 
         if (size_n % 2 == 1) {
@@ -623,7 +701,7 @@ int main() {
                               0, 0, 0, 0, 0, 0, 0, 0,
                               0, 0}; // K=8
 
-            for (int j = 0; j < 26; j++) {
+            for (int j = 0; j < 24; j++) {
                 v[j] = parity[i][j];
             }
             printNucVectorBool(v);
@@ -631,8 +709,8 @@ int main() {
         decode_ldpc();
 
         // decode_bic();
-        decode_bbic_ldpc();
-       // decode_bbic();
+        // decode_bbic_ldpc();
+       decode_bbic();
         cout << "----------------" << endl;
         cout << "size_DATA: " << size_n << endl;
         cout << "size_beta: " << size_beta << endl;
