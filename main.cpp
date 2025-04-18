@@ -25,7 +25,7 @@ vector<bool> data_vec;
 vector<pair<int, vector<bool> > > result_vec_bic;
 vector<Vec> parity = vector<Vec>();
 vector<bool> decoded_vec_bic;
-vector<vector<bool>> decoded_vec_bic_ldpc;
+vector<vector<bool> > decoded_vec_bic_ldpc;
 int i_s, i_e, size_m, size_k, size_beta;
 unsigned long size_n;
 bool used_all_data;
@@ -106,7 +106,7 @@ int restart_param(int m, int k) {
 }
 
 int addEmptyItems(std::vector<bool> &result, int m) {
-    for (int i = 2 * m + 1-4; i <= result.size(); i += 2 * m) {
+    for (int i = 2 * m + 1 - 4; i <= result.size(); i += 2 * m) {
         result.insert(result.begin() + i, false);
     }
     //result.resize(2*size_k);
@@ -317,7 +317,7 @@ void fill_random_data() {
     uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
 
     // Generate a random size
-    size_t random_size = 128*8*8*3;//size_dist(gen);
+    size_t random_size = 128 * 8 * 8 * 3; //size_dist(gen);
 
     // Resize the vector
     data_vec.resize(random_size);
@@ -354,14 +354,14 @@ int pad_till_success(vector<bool> data) {
 int find_best_idx(int idx) {
     vector<bool> olig = result_vec_bic[idx].second;
     int scores[8] = {0};
-    for (int i=0; i<8; i++) {
+    for (int i = 0; i < 8; i++) {
         vector<bool> tmp_olig;
         copy(olig.begin(), olig.end(), back_inserter(tmp_olig));
-        for (int j = 0; j < kb_idxs[i]; j+=1) {
+        for (int j = 0; j < kb_idxs[i]; j += 1) {
             tmp_olig[j].flip();
         }
         int counter = 0;
-        for (int i = 0; i < tmp_olig.size(); i+=2) {
+        for (int i = 0; i < tmp_olig.size(); i += 2) {
             if (tmp_olig[i] == 0) {
                 counter += 1;
             } else {
@@ -374,9 +374,8 @@ int find_best_idx(int idx) {
 
     int index = 0;
 
-    for(int i = 0; i < 8; i++)
-    {
-        if(scores[i] < scores[index])
+    for (int i = 0; i < 8; i++) {
+        if (scores[i] < scores[index])
             index = i;
     }
     return kb_idxs[index];
@@ -387,7 +386,7 @@ void knuth_balance(int idx) {
     vector<bool> olig = result_vec_bic[idx].second;
     int zeros = 0;
     int ones = 0;
-    for (int i = 0; i < olig.size(); i+=2) {
+    for (int i = 0; i < olig.size(); i += 2) {
         if (olig[i] == 0) {
             zeros += 1;
         }
@@ -396,14 +395,13 @@ void knuth_balance(int idx) {
         }
     }
 
-    int too_many_ones = (ones - zeros)/2;
+    int too_many_ones = (ones - zeros) / 2;
     int tmp = 0;
     int idx_to_balance = 0;
-    for (idx_to_balance = 0; idx_to_balance < olig.size(); idx_to_balance+=2) {
+    for (idx_to_balance = 0; idx_to_balance < olig.size(); idx_to_balance += 2) {
         if (olig[idx_to_balance] == 1) {
             tmp += 1;
-        }
-        else {
+        } else {
             tmp -= 1;
         }
 
@@ -417,9 +415,9 @@ void knuth_balance(int idx) {
     }
 
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), idx_to_balance & 1);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 2)>>1)&1);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 4)>>2)&1);
-    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 8)>>3)&1);
+    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 2) >> 1) & 1);
+    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 4) >> 2) & 1);
+    result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 8) >> 3) & 1);
     // result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 16)>>4)&1);
     // result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 32)>>5)&1);
 }
@@ -454,61 +452,58 @@ int encode_bbic() {
 int decode_bbic() {
     decoded_vec_bic = vector<bool>();
     // for (auto oligo_vec: result_vec_bic) {
-        for (int i=0; i<result_vec_bic.size(); i++) {
-            int kbt_idx =
-                  // (result_vec_bic[i].second[0] << 5) |
-                  // (result_vec_bic[i].second[1] << 4) |
-                  (result_vec_bic[i].second[0] << 3) |
-                  (result_vec_bic[i].second[1] << 2) |
-                  (result_vec_bic[i].second[2] << 1) |
-                  (result_vec_bic[i].second[3] << 0);
+    for (int i = 0; i < result_vec_bic.size(); i++) {
+        int kbt_idx =
+                // (result_vec_bic[i].second[0] << 5) |
+                // (result_vec_bic[i].second[1] << 4) |
+                (result_vec_bic[i].second[0] << 3) |
+                (result_vec_bic[i].second[1] << 2) |
+                (result_vec_bic[i].second[2] << 1) |
+                (result_vec_bic[i].second[3] << 0);
 
-            int ol_i = result_vec_bic[i].first;
+        int ol_i = result_vec_bic[i].first;
 
-            // take_data_without_Q(result_vec_bic[i].first);
-            auto it = result_vec_bic.begin();
-            for (; it != result_vec_bic.end(); ++it) {
-                if (it->first == ol_i) {
-                    break;
-                }
+        // take_data_without_Q(result_vec_bic[i].first);
+        auto it = result_vec_bic.begin();
+        for (; it != result_vec_bic.end(); ++it) {
+            if (it->first == ol_i) {
+                break;
             }
-
-            if (it == result_vec_bic.end()) {
-                return 1;
-            }
-            int first_q = 2 * size_m + 1;
-
-
-            // add_Q_data(result_vec_bic[i].first);
-            vector<bool> Q_data = vector<bool>();
-            for (int l = first_q; l <= it->second.size(); l += 2 * size_m) {
-                if (!(is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l))) {
-                    Q_data.insert(Q_data.end(), 1, it->second[l]);
-                }
-            }
-
-            //result_vec_bic[i].second.erase(result_vec_bic[i].second.begin(),result_vec_bic[i].second.begin()+6);
-            for (int j = 4; j <= kbt_idx+4; j += 2) {
-                result_vec_bic[i].second[j] = !result_vec_bic[i].second[j];
-            }
-
-            // take_data_without_Q(result_vec_bic[i].first);
-            for (int l = 4; l < 2 * size_k + 4; l++) {
-                //TODO: Skip Q
-                if (l < first_q || ((l - first_q) % (2 * size_m) != 0)) {
-                    decoded_vec_bic.insert(decoded_vec_bic.end(), 1, it->second[l]);
-                }
-            }
-
-
-
-            // add_Q_data(result_vec_bic[i].first);
-            decoded_vec_bic.insert(decoded_vec_bic.end(), Q_data.begin(), Q_data.end());
         }
+
+        if (it == result_vec_bic.end()) {
+            return 1;
+        }
+        int first_q = 2 * size_m + 1;
+
+
+        // add_Q_data(result_vec_bic[i].first);
+        vector<bool> Q_data = vector<bool>();
+        for (int l = first_q; l <= it->second.size(); l += 2 * size_m) {
+            if (!(is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l))) {
+                Q_data.insert(Q_data.end(), 1, it->second[l]);
+            }
+        }
+
+        //result_vec_bic[i].second.erase(result_vec_bic[i].second.begin(),result_vec_bic[i].second.begin()+6);
+        for (int j = 4; j <= kbt_idx + 4; j += 2) {
+            result_vec_bic[i].second[j] = !result_vec_bic[i].second[j];
+        }
+
+        // take_data_without_Q(result_vec_bic[i].first);
+        for (int l = 4; l < 2 * size_k + 4; l++) {
+            //TODO: Skip Q
+            if (l < first_q || ((l - first_q) % (2 * size_m) != 0)) {
+                decoded_vec_bic.insert(decoded_vec_bic.end(), 1, it->second[l]);
+            }
+        }
+
+
+        // add_Q_data(result_vec_bic[i].first);
+        decoded_vec_bic.insert(decoded_vec_bic.end(), Q_data.begin(), Q_data.end());
+    }
     return 0;
 }
-
-
 
 
 int IGNORED_POSITIONS[] = {6, 10, 14, 18};
@@ -524,28 +519,36 @@ int encode_ldpc() {
             p = result_vec_bic.size() - i;
         }
 
-        par_1 = {0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0}; // K=8
-        par_2 = {0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0}; // K=8
-        par_3 = {0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0}; // K=8
-        par_4 = {0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0}; // K=8
+        par_1 = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0
+        }; // K=8
+        par_2 = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0
+        }; // K=8
+        par_3 = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0
+        }; // K=8
+        par_4 = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0
+        }; // K=8
 
         for (int j = 0; j < 24; j++) {
             bool ignored = false;
             Vec word = {0, 0, 0, 0, 0, 0, 0, 0}; // K=8
             for (int k = 0; k < p; k++) {
-               word[k] = result_vec_bic[i+k].second[j];
+                word[k] = result_vec_bic[i + k].second[j];
             }
             Vec encoded_data = algorithm5_encode_simple(word, G_example);
             for (int k = 0; k < size(IGNORED_POSITIONS); k++) {
@@ -554,12 +557,12 @@ int encode_ldpc() {
                 }
             }
             if (ignored) {
-                par_1[j] = !par_1[j-2];
-                par_2[j] = !par_2[j-2];
-                par_3[j] = !par_3[j-2];
-                par_4[j] = !par_4[j-2];
+                par_1[j] = !par_1[j - 2];
+                par_2[j] = !par_2[j - 2];
+                par_3[j] = !par_3[j - 2];
+                par_4[j] = !par_4[j - 2];
             } else {
-                par_1[j]= encoded_data[8];
+                par_1[j] = encoded_data[8];
                 par_2[j] = encoded_data[9];
                 par_3[j] = encoded_data[10];
                 par_4[j] = encoded_data[11];
@@ -577,18 +580,18 @@ int encode_ldpc() {
 
 int decode_bbic_ldpc() {
     decoded_vec_bic = vector<bool>();
-    for (int i=0; i<decoded_vec_bic_ldpc.size(); i++) {
+    for (int i = 0; i < decoded_vec_bic_ldpc.size(); i++) {
         int kbt_idx =
-              (decoded_vec_bic_ldpc[i][0] << 5) +
-              (decoded_vec_bic_ldpc[i][1] << 4) +
-              (decoded_vec_bic_ldpc[i][2] << 3) +
-              (decoded_vec_bic_ldpc[i][3] << 2) +
-              (decoded_vec_bic_ldpc[i][4] << 1) +
-              (decoded_vec_bic_ldpc[i][5] << 0);
+                (decoded_vec_bic_ldpc[i][0] << 5) +
+                (decoded_vec_bic_ldpc[i][1] << 4) +
+                (decoded_vec_bic_ldpc[i][2] << 3) +
+                (decoded_vec_bic_ldpc[i][3] << 2) +
+                (decoded_vec_bic_ldpc[i][4] << 1) +
+                (decoded_vec_bic_ldpc[i][5] << 0);
         for (int j = 6; j <= 6 + kbt_idx; j += 2) {
             decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
         }
-        decoded_vec_bic_ldpc[i].erase(decoded_vec_bic_ldpc[i].begin(),decoded_vec_bic_ldpc[i].begin() + 6);
+        decoded_vec_bic_ldpc[i].erase(decoded_vec_bic_ldpc[i].begin(), decoded_vec_bic_ldpc[i].begin() + 6);
 
         for (int k = 0; k < result_vec_bic.size(); k++) {
             if (result_vec_bic[k].first == i) {
@@ -605,19 +608,19 @@ int decode_bbic_ldpc() {
 
 int decode_ldpc() {
     for (int i = 0; i < result_vec_bic.size(); i += 8) {
-        bool tmp[8][24] = {false} ;
+        bool tmp[8][24] = {false};
 
         int p = 8;
         if (result_vec_bic.size() - i < 8) {
             p = result_vec_bic.size() - i;
         }
         for (int j = 0; j < 24; j++) {
-            Vec word = {0, 0, 0, 0, 0, 0, 0, 0,    0,0,0,0}; // K=8
+            Vec word = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // K=8
             for (int k = 0; k < p; k++) {
-                word[k] = result_vec_bic[i+k].second[j];
+                word[k] = result_vec_bic[i + k].second[j];
             }
             for (int k = 0; k < 4; k++) {
-                word[8 + k] = parity[k+4*i/8][j];
+                word[8 + k] = parity[k + 4 * i / 8][j];
             }
             Vec t = algorithm6_decode_simple(word, H_example, 5).first;
 
@@ -627,7 +630,7 @@ int decode_ldpc() {
             }
             for (int k = 0; k < 8; k++) {
                 bool is_ignored = false;
-                for (int pos : IGNORED_POSITIONS) {
+                for (int pos: IGNORED_POSITIONS) {
                     if (pos == j) {
                         is_ignored = true;
                         break;
@@ -639,7 +642,7 @@ int decode_ldpc() {
                     tmp[k][j] = word[k];
                 }
             }
-            continue2:;
+        continue2:;
         }
         for (int j = 0; j < p; j++) {
             vector<bool> tmp_vec(24, false);
@@ -682,24 +685,26 @@ int main() {
         //unsigned long num_i = ((size_n)+(2*size_k-size_beta)-1)/(2*size_k-size_beta);
         encode_bbic();
 
-        cout <<endl<<endl<<endl<<endl;
+        cout << endl << endl << endl << endl;
         cout << "DATA" << endl;
-        cout <<endl<<endl<<endl<<endl;
+        cout << endl << endl << endl << endl;
 
         for (int i = 0; i < result_vec_bic.size(); i++) {
             printNucVectorBool(result_vec_bic[i].second);
         }
 
         encode_ldpc();
-        cout <<endl<<endl<<endl<<endl;
+        cout << endl << endl << endl << endl;
         cout << "PARITY:" << endl;
-        cout <<endl<<endl<<endl<<endl;
+        cout << endl << endl << endl << endl;
 
         for (int i = 0; i < size(parity); i++) {
-            vector<bool> v = {0, 0, 0, 0, 0, 0, 0, 0,
-                              0, 0, 0, 0, 0, 0, 0, 0,
-                              0, 0, 0, 0, 0, 0, 0, 0,
-                              0, 0}; // K=8
+            vector<bool> v = {
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
+            }; // K=8
 
             for (int j = 0; j < 24; j++) {
                 v[j] = parity[i][j];
@@ -710,7 +715,7 @@ int main() {
 
         // decode_bic();
         // decode_bbic_ldpc();
-       decode_bbic();
+        decode_bbic();
         cout << "----------------" << endl;
         cout << "size_DATA: " << size_n << endl;
         cout << "size_beta: " << size_beta << endl;
