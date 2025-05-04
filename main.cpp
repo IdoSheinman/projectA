@@ -454,49 +454,49 @@ int encode_bbic() {
 int decode_bbic() {
     decoded_vec_bic = vector<bool>();
     // for (auto oligo_vec: result_vec_bic) {
-    for (int i = 0; i < result_vec_bic.size(); i++) {
+    for (int i = 0; i < decoded_vec_bic_ldpc.size(); i++) {
         int kbt_idx =
                 // (result_vec_bic[i].second[0] << 5) |
                 // (result_vec_bic[i].second[1] << 4) |
-                (result_vec_bic[i].second[0] << 3) |
-                (result_vec_bic[i].second[1] << 2) |
-                (result_vec_bic[i].second[2] << 1) |
-                (result_vec_bic[i].second[3] << 0);
+                (decoded_vec_bic_ldpc[i][0] << 3) |
+                (decoded_vec_bic_ldpc[i][1] << 2) |
+                (decoded_vec_bic_ldpc[i][2] << 1) |
+                (decoded_vec_bic_ldpc[i][3] << 0);
 
-        int ol_i = result_vec_bic[i].first;
+        int ol_i = i;
 
         // take_data_without_Q(result_vec_bic[i].first);
-        auto it = result_vec_bic.begin();
-        for (; it != result_vec_bic.end(); ++it) {
-            if (it->first == ol_i) {
-                break;
-            }
-        }
+        // auto it = decoded_vec_bic_ldpc.begin();
+        // for (; it != decoded_vec_bic_ldpc.end(); ++it) {
+        //     if (it->first == ol_i) {
+        //         break;
+        //     }
+        // }
 
-        if (it == result_vec_bic.end()) {
-            return 1;
-        }
+        // if (it == result_vec_bic.end()) {
+        //     return 1;
+        // }
         int first_q = 2 * size_m + 1;
 
 
         // add_Q_data(result_vec_bic[i].first);
         vector<bool> Q_data = vector<bool>();
-        for (int l = first_q; l <= it->second.size(); l += 2 * size_m) {
-            if (!(is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l))) {
-                Q_data.insert(Q_data.end(), 1, it->second[l]);
+        for (int l = first_q; l <= decoded_vec_bic_ldpc[i].size(); l += 2 * size_m) {
+            if (!(is_condition_1_satisfied(decoded_vec_bic_ldpc[i], l) && is_condition_2_satisfied(decoded_vec_bic_ldpc[i], l))) {
+                Q_data.insert(Q_data.end(), 1, decoded_vec_bic_ldpc[i][l]);
             }
         }
 
         //result_vec_bic[i].second.erase(result_vec_bic[i].second.begin(),result_vec_bic[i].second.begin()+6);
         for (int j = 4; j <= kbt_idx + 4; j += 2) {
-            result_vec_bic[i].second[j] = !result_vec_bic[i].second[j];
+            decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
         }
 
         // take_data_without_Q(result_vec_bic[i].first);
         for (int l = 4; l < 2 * size_k + 4; l++) {
             //TODO: Skip Q
             if (l < first_q || ((l - first_q) % (2 * size_m) != 0)) {
-                decoded_vec_bic.insert(decoded_vec_bic.end(), 1, it->second[l]);
+                decoded_vec_bic.insert(decoded_vec_bic.end(), 1, decoded_vec_bic_ldpc[i][l]);
             }
         }
 
@@ -730,12 +730,13 @@ int main() {
                 result_vec_bic[10].second[i] = !result_vec_bic[10].second[i];
             }
         }*/
-        // result_vec_bic[0].second[11] = !result_vec_bic[0].second[11];
+        // Add an error to to verify ldpc error correction
+        result_vec_bic[0].second[11] = !result_vec_bic[0].second[11];
         decode_ldpc();
 
         // decode_bic();
         //decode_bbic_ldpc();
-        // decode_bbic();
+        decode_bbic();
         cout << "----------------" << endl;
         cout << "size_DATA: " << size_n << endl;
         cout << "size_beta: " << size_beta << endl;
