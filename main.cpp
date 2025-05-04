@@ -29,7 +29,7 @@ vector<vector<bool> > decoded_vec_bic_ldpc;
 int i_s, i_e, size_m, size_k, size_beta;
 unsigned long size_n;
 bool used_all_data;
-int counter;
+int dummy_bit_counter;
 int kb_idxs[8];
 
 bool add_dummy_bits();
@@ -91,7 +91,7 @@ int restart_param(int m, int k) {
     i_s = 0;
     i_e = 0;
     used_all_data = false;
-    counter = 0;
+    dummy_bit_counter = 0;
     kb_idxs[0] = 2; // AC
     kb_idxs[1] = 3; // AG
     kb_idxs[2] = 6; // TC
@@ -131,7 +131,7 @@ int copy_data_without_Q(int ol_i) {
             it->second[l - i_s] = data_vec[l];
         } else {
             it->second[l - i_s] = add_dummy_bits();
-            counter++;
+            dummy_bit_counter++;
         }
     }
 
@@ -210,9 +210,9 @@ int add_bbic_bit(int ol_i) {
                 }
             } //if the last???
             else {
-                cout << "ERROR: Reached unreachable code" << endl;
+                cout << "ADD DUMMY BITS" << endl;
                 it->second[l] = add_dummy_bits(); //need to see what val at the end
-                counter++;
+                dummy_bit_counter++;
             }
         }
     }
@@ -225,7 +225,7 @@ bool add_dummy_bits() {
     //data_vec.insert(data_vec.end(),1,dummy_arr[counter % 8]);
     //counter++;
     //size_n = data_vec.size();
-    return dummy_arr[counter % 8];
+    return dummy_arr[dummy_bit_counter % 8];
 }
 
 int encode_bic() {
@@ -384,18 +384,19 @@ int find_best_idx(int idx) {
 
 void knuth_balance(int idx) {
     vector<bool> olig = result_vec_bic[idx].second;
-    int zeros = 0;
-    int ones = 0;
+    int zero_cnt = 0;
+    int one_cnt = 0;
     for (int i = 0; i < olig.size(); i += 2) {
         if (olig[i] == 0) {
-            zeros += 1;
+            zero_cnt += 1;
         }
         if (olig[i] == 1) {
-            ones += 1;
+            one_cnt += 1;
         }
     }
 
-    int too_many_ones = (ones - zeros) / 2;
+    // TODO: Maybe the find_best_idx part makes this irrelevant
+    int too_many_ones = (one_cnt - zero_cnt) / 2;
     int tmp = 0;
     int idx_to_balance = 0;
     for (idx_to_balance = 0; idx_to_balance < olig.size(); idx_to_balance += 2) {
@@ -408,12 +409,13 @@ void knuth_balance(int idx) {
         if (tmp == too_many_ones) {
             break;
         }
-    }
+    } // Find index to flip, where after flipping itll be balanced
     idx_to_balance = find_best_idx(idx);
     for (int i = 0; i <= idx_to_balance; i += 2) {
         result_vec_bic[idx].second[i] = !result_vec_bic[idx].second[i];
     }
 
+    // 4 index bits, depend on oligo size (this should work with 20)
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), idx_to_balance & 1);
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 2) >> 1) & 1);
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 4) >> 2) & 1);
@@ -426,15 +428,15 @@ void knuth_balance(int idx) {
 int encode_bbic() {
     int oligo_num = 0;
     int rest;
-    int oligo_size = 2 * size_k - size_beta;
+    int oligo_data_size = 2 * size_k - size_beta;
     while (!used_all_data) {
-        i_e = i_s + oligo_size - 1;
-        vector<bool> oligo(oligo_size);
+        i_e = i_s + oligo_data_size - 1;
+        vector<bool> oligo(oligo_data_size);
         // Add the pair (i, oligo) to result_vec
         result_vec_bic.emplace_back(oligo_num, oligo);
         if (!copy_data_without_Q(oligo_num)) {
             knuth_balance(oligo_num);
-            int added = add_bbic_bit(oligo_num);
+            int added = add_bbic_bit(oligo_num); //add q bits
             i_s = i_e + 1 + added;
         } else {
             return 1;
@@ -506,8 +508,10 @@ int decode_bbic() {
 }
 
 
+// Q data
 int IGNORED_POSITIONS[] = {6, 10, 14, 18};
 // Algo 5-6
+// currently for every 8 data oligos we use 4 parity oligos
 int encode_ldpc() {
     Vec par_1;
     Vec par_2;
@@ -518,7 +522,7 @@ int encode_ldpc() {
         if (result_vec_bic.size() - i < 8) {
             p = result_vec_bic.size() - i;
         }
-
+        // TODO: Should be 24 bits long instead of 26
         par_1 = {
             0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0,
@@ -569,6 +573,8 @@ int encode_ldpc() {
             }
         }
 
+        // TODO: Knuth balance on the parity oligos INSTEAD of ldpc protection on bbic bits
+
         parity.emplace_back(par_1);
         parity.emplace_back(par_2);
         parity.emplace_back(par_3);
@@ -577,33 +583,34 @@ int encode_ldpc() {
 
     return 0;
 }
+// TODO: this currently isnt ordered correctly. should be  take_data_without_Q -> balance -> add_Q_data. based on decode_bbic.
+// int decode_bbic_ldpc() {
+//     decoded_vec_bic = vector<bool>();
+//     for (int i = 0; i < decoded_vec_bic_ldpc.size(); i++) {
+//         int kbt_idx =
+//                 // (decoded_vec_bic_ldpc[i][0] << 5) +
+//                 // (decoded_vec_bic_ldpc[i][1] << 4) +
+//                 (decoded_vec_bic_ldpc[i][0] << 3) +
+//                 (decoded_vec_bic_ldpc[i][1] << 2) +
+//                 (decoded_vec_bic_ldpc[i][2] << 1) +
+//                 (decoded_vec_bic_ldpc[i][3] << 0);
+//         for (int j = 4; j <= 4 + kbt_idx; j += 2) {
+//             decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
+//         }
+//         decoded_vec_bic_ldpc[i].erase(decoded_vec_bic_ldpc[i].begin(), decoded_vec_bic_ldpc[i].begin() + 4);
+//
+//         for (int k = 0; k < result_vec_bic.size(); k++) {
+//             if (result_vec_bic[k].first == i) {
+//                 result_vec_bic[k].second = decoded_vec_bic_ldpc[i];
+//                 break;
+//             }
+//         }
+//         take_data_without_Q(result_vec_bic[i].first);
+//         add_Q_data(result_vec_bic[i].first);
+//     }
+//     return 0;
+// }
 
-int decode_bbic_ldpc() {
-    decoded_vec_bic = vector<bool>();
-    for (int i = 0; i < decoded_vec_bic_ldpc.size(); i++) {
-        int kbt_idx =
-                (decoded_vec_bic_ldpc[i][0] << 5) +
-                (decoded_vec_bic_ldpc[i][1] << 4) +
-                (decoded_vec_bic_ldpc[i][2] << 3) +
-                (decoded_vec_bic_ldpc[i][3] << 2) +
-                (decoded_vec_bic_ldpc[i][4] << 1) +
-                (decoded_vec_bic_ldpc[i][5] << 0);
-        for (int j = 6; j <= 6 + kbt_idx; j += 2) {
-            decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
-        }
-        decoded_vec_bic_ldpc[i].erase(decoded_vec_bic_ldpc[i].begin(), decoded_vec_bic_ldpc[i].begin() + 6);
-
-        for (int k = 0; k < result_vec_bic.size(); k++) {
-            if (result_vec_bic[k].first == i) {
-                result_vec_bic[k].second = decoded_vec_bic_ldpc[i];
-                break;
-            }
-        }
-        take_data_without_Q(result_vec_bic[i].first);
-        add_Q_data(result_vec_bic[i].first);
-    }
-    return 0;
-}
 
 
 int decode_ldpc() {
@@ -614,6 +621,7 @@ int decode_ldpc() {
         if (result_vec_bic.size() - i < 8) {
             p = result_vec_bic.size() - i;
         }
+        // TODO Knuth balance
         for (int j = 0; j < 24; j++) {
             Vec word = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // K=8
             for (int k = 0; k < p; k++) {
@@ -642,7 +650,6 @@ int decode_ldpc() {
                     tmp[k][j] = word[k];
                 }
             }
-        continue2:;
         }
         for (int j = 0; j < p; j++) {
             vector<bool> tmp_vec(24, false);
@@ -711,11 +718,24 @@ int main() {
             }
             printNucVectorBool(v);
         }
+       /* for (int i = 0; i < size(parity) - 2; i++) {
+            bool flip = true;
+            for (int j = 0; j < 4; j++) {
+                if (IGNORED_POSITIONS[j] - 4 == i) {
+                    flip = false;
+                    break;
+                }
+            }
+            if (flip) {
+                result_vec_bic[10].second[i] = !result_vec_bic[10].second[i];
+            }
+        }*/
+        // result_vec_bic[0].second[11] = !result_vec_bic[0].second[11];
         decode_ldpc();
 
         // decode_bic();
-        // decode_bbic_ldpc();
-        decode_bbic();
+        //decode_bbic_ldpc();
+        // decode_bbic();
         cout << "----------------" << endl;
         cout << "size_DATA: " << size_n << endl;
         cout << "size_beta: " << size_beta << endl;
