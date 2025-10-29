@@ -57,6 +57,26 @@ void printNucVectorBool(vector<bool> vec) {
     cout << endl;
 }
 
+
+void printNucVectorBool(Vec vec) {
+    auto it = vec.begin();
+    for (; (it != vec.end()) && (it + 1 != vec.end()); it = it + 2) {
+        if ((!*it) && (!*(it + 1))) {
+            cout << "A" << " ";
+        }
+        if ((!*it) && (*(it + 1))) {
+            cout << "T" << " ";
+        }
+        if ((*it) && (!*(it + 1))) {
+            cout << "C" << " ";
+        }
+        if (*it && *(it + 1)) {
+            cout << "G" << " ";
+        }
+    }
+    cout << endl;
+}
+
 bool areEqual(const vector<bool> &vec1, const vector<bool> &vec2, bool verbose = false) {
     if (verbose) {
         cout << "Differences between the vectors:" << endl;
@@ -393,7 +413,7 @@ int verify_oligo(vector<bool> oligo) {
     int at = atcg_counts[0] + atcg_counts[1];
     int cg =  atcg_counts[2] + atcg_counts[3];
     //  GC - content constraint
-    if (abs(at) > 7 || abs(cg) > 7) { // The oligo length is 12. the at/cg contents needs to be [0.4,0.6] so between 5 to 7
+    if (abs(at) > 8 || abs(cg) > 8) { // The oligo length is 12. the at/cg contents needs to be [0.4,0.6] so between 5 to 7
         return 1;
     }
 
@@ -514,6 +534,58 @@ int decode_bbic() {
 // Q data
 int IGNORED_POSITIONS[] = {6, 10, 14, 18};
 // Algo 5-6
+int balance_parity_oligo(Vec& parity_oligo) {
+    printNucVectorBool(parity_oligo);
+    int current_balance = 0;
+    for (int i=0;i<parity_oligo.size();i+=2) {
+        bool skip=false;
+        for (int j=0;j<4;j++) {
+            if (i == IGNORED_POSITIONS[j]) {
+                skip=true;
+            }
+        }
+        if (skip) {
+            continue;
+        }
+
+        if (parity_oligo[i] == 0) {
+            current_balance++;
+        } else {
+            current_balance--;
+        }
+    }
+
+    for (int i=0;i<4;i++) {
+        if (current_balance > 0) { // More 0s
+            parity_oligo[IGNORED_POSITIONS[i]] = 1;
+            current_balance -= 1;
+        } else {
+            parity_oligo[IGNORED_POSITIONS[i]] = 0;
+            current_balance += 1;
+        }
+    }
+    // Handle edge case of 8 AT/CG before bbic bits
+    if (current_balance > 3) {
+        for (int i=0;i<parity_oligo.size();i+=2) {
+            if (parity_oligo[i] == 0) {
+                parity_oligo[i] = !parity_oligo[i];
+                return 0;
+            }
+        }
+    }
+
+    if (current_balance < -3) {
+        for (int i=0;i<parity_oligo.size();i+=2) {
+            if (parity_oligo[i] == 1) {
+                parity_oligo[i] = !parity_oligo[i];
+                return 0;
+            }
+        }
+    }
+    printNucVectorBool(parity_oligo);
+    return 0;
+}
+
 // currently for every 8 data oligos we use 4 parity oligos
 int encode_ldpc() {
     Vec par_1;
@@ -554,7 +626,7 @@ int encode_ldpc() {
             }
             Vec encoded_data = algorithm5_encode_simple(word, G_example);
             for (int k = 0; k < size(IGNORED_POSITIONS); k++) {
-                if (j == IGNORED_POSITIONS[k]) {
+                if (j == IGNORED_POSITIONS[k]|| j == (IGNORED_POSITIONS[k]+1)) {
                     ignored = true;
                 }
             }
@@ -570,6 +642,11 @@ int encode_ldpc() {
                 par_4[j] = encoded_data[11];
             }
         }
+
+        balance_parity_oligo(par_1);
+        balance_parity_oligo(par_2);
+        balance_parity_oligo(par_3);
+        balance_parity_oligo(par_4);
 
         parity.emplace_back(par_1);
         parity.emplace_back(par_2);
@@ -598,21 +675,22 @@ int decode_ldpc() {
             for (int k = 0; k < 4; k++) {
                 word[8 + k] = parity[k + 4 * i / 8][j];
             }
-            Vec t = algorithm6_decode_simple(word, H_example, 5).first;
-
-            if (t.size() == 0) {
-                cout << "Failed to decode" << endl;
-                return 0;
-            }
             for (int k = 0; k < 8; k++) {
                 bool is_ignored = false;
-                for (int pos: IGNORED_POSITIONS) {
-                    if (pos == j) {
+                for (int r = 0; r < size(IGNORED_POSITIONS); r++) {
+                    if (j == IGNORED_POSITIONS[r] || j == (IGNORED_POSITIONS[r] + 1)) {
                         is_ignored = true;
-                        break;
                     }
                 }
                 if (!is_ignored) {
+                    Vec t = algorithm6_decode_simple(word, H_example, 5).first;
+
+                    if (t.size() == 0) {
+                        // Best effort decoding, if the problem is in the ldpc parity bits this is still fine.
+                        cout << "Failed to decode" << endl;
+                        tmp[k][j] = word[k];
+                        continue;
+                    }
                     tmp[k][j] = t[k];
                 } else {
                     tmp[k][j] = word[k];
@@ -681,14 +759,27 @@ int main() {
             v[j] = parity[i][j];
         }
         printNucVectorBool(v);
+        if (verify_oligo(v) != 0) {
+            cout << "BAD VERIFY" << endl;
+            return 1; // BAD VERIFY
+        };
+
     }
 
-    // Add an error to to verify ldpc error correction
-    result_vec_bic[0].second[11] = !result_vec_bic[0].second[11];
-    result_vec_bic[1].second[7] = !result_vec_bic[1].second[7];
-    result_vec_bic[1].second[2] = !result_vec_bic[1].second[2];
-    result_vec_bic[4].second[3] = !result_vec_bic[4].second[3];
-    result_vec_bic[7].second[9] = !result_vec_bic[7].second[9];
+    // Insert errors to to verify ldpc error correction
+    // Note: There are errors that appear statistically due to the
+    //       CG constraint on the parity bits. We insert them
+    //       in a position dependent on the data (random data we generate)
+    //       This can cause the error to appear in the same column as an
+    //       error we insert here, which would result in wrong data
+    //       being recovered.
+    for (int x=0;x<500;x+=8) {
+        result_vec_bic[x+1].second[2] = !result_vec_bic[x+1].second[2];
+        result_vec_bic[x+4].second[3] = !result_vec_bic[x+4].second[3];
+        result_vec_bic[x+7].second[9] = !result_vec_bic[x+7].second[9];
+        result_vec_bic[x+4].second[12] = !result_vec_bic[x+4].second[12];
+        result_vec_bic[x+5].second[13] = !result_vec_bic[x+5].second[13];
+    }
 
     decode_ldpc();
 
