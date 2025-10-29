@@ -413,7 +413,7 @@ int verify_oligo(vector<bool> oligo) {
     int at = atcg_counts[0] + atcg_counts[1];
     int cg =  atcg_counts[2] + atcg_counts[3];
     //  GC - content constraint
-    if (abs(at) > 8 || abs(cg) > 8) { // The oligo length is 12. the at/cg contents needs to be [0.4,0.6] so between 5 to 7
+    if (abs(at) > 7 || abs(cg) > 7) { // The oligo length is 12. the at/cg contents needs to be [0.4,0.6] so between 5 to 7
         return 1;
     }
 
