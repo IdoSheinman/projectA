@@ -100,6 +100,37 @@ int restart_param(int m, int k) {
     return 0;
 }
 
+int actual_kb_idxs(int stored_idx) {
+    if (stored_idx == 1) {
+        return 2;
+    }
+    if (stored_idx == kb_idxs[0]) {
+        return 0;
+    }
+    if (stored_idx == kb_idxs[1]) {
+        return 4;
+    }
+    if (stored_idx == kb_idxs[2]) {
+        return 6;
+    }
+    if (stored_idx == kb_idxs[3]) {
+        return 8;
+    }
+    if (stored_idx == kb_idxs[4]) {
+        return 10;
+    }
+    if (stored_idx == kb_idxs[5]) {
+        return 12;
+    }
+    if (stored_idx == kb_idxs[6]) {
+        return 14;
+    }
+    if (stored_idx == kb_idxs[7]) {
+        return 14;
+    }
+    return -1;
+}
+
 int addEmptyItems(std::vector<bool> &result, int m) {
     for (int i = 2 * m + 1 - 4; i <= result.size(); i += 2 * m) {
         result.insert(result.begin() + i, false);
@@ -282,7 +313,6 @@ int take_data_without_Q(int ol_i) {
     }
     unsigned int first_q = 2 * size_m + 1;
     for (int l = 0; l < 2 * size_k; l++) {
-        //TODO: Skip Q
         if (l < first_q || ((l - first_q) % (2 * size_m) != 0)) {
             decoded_vec_bic.insert(decoded_vec_bic.end(), 1, it->second[l]);
         }
@@ -329,12 +359,12 @@ int find_best_idx(int idx) {
     for (int i = 0; i < 8; i++) {
         vector<bool> tmp_olig;
         copy(olig.begin(), olig.end(), back_inserter(tmp_olig));
-        for (int j = 0; j < kb_idxs[i]; j += 1) {
+        for (int j = 0; j <= actual_kb_idxs(kb_idxs[i]); j += 2) {
             tmp_olig[j].flip();
         }
         int counter = 0;
-        for (int i = 0; i < tmp_olig.size(); i += 2) {
-            if (tmp_olig[i] == 0) {
+        for (int j = 0; j < tmp_olig.size(); j += 2) {
+            if (tmp_olig[j] == 0) {
                 counter += 1;
             } else {
                 counter -= 1;
@@ -351,6 +381,39 @@ int find_best_idx(int idx) {
             index = i;
     }
     return kb_idxs[index];
+}
+
+int verify_oligo(vector<bool> oligo) {
+    int atcg_counts[4] = {0, 0, 0, 0};
+
+    for (int x=0; x<oligo.size(); x+=2) {
+        int nuc = oligo[x] << 1 | oligo[x + 1];
+        atcg_counts[nuc]++;
+    }
+    int at = atcg_counts[0] + atcg_counts[1];
+    int cg =  atcg_counts[2] + atcg_counts[3];
+    //  GC - content constraint
+    if (abs(at) > 7 || abs(cg) > 7) { // The oligo length is 12. the at/cg contents needs to be [0.4,0.6] so between 5 to 7
+        return 1;
+    }
+
+    int successive = 1;
+    int prev = (oligo[0]<<1)|oligo[1];
+    int current;
+    for (int i=2; i < oligo.size(); i+=2) {
+        current = (oligo[i]<<1) | oligo[i + 1];
+        if (prev == current) {
+            successive++;
+            if (successive == 4) {
+                return 1;
+            }
+        }
+        else {
+            successive = 1;
+        }
+        prev = current;
+    }
+    return 0;
 }
 
 
@@ -370,7 +433,7 @@ void knuth_balance(int idx) {
     int idx_to_balance = 0;
 
     idx_to_balance = find_best_idx(idx);
-    for (int i = 0; i <= idx_to_balance; i += 2) {
+    for (int i = 0; i <= actual_kb_idxs(idx_to_balance); i += 2) {
         result_vec_bic[idx].second[i] = !result_vec_bic[idx].second[i];
     }
 
@@ -429,7 +492,7 @@ int decode_bbic() {
         }
 
         //result_vec_bic[i].second.erase(result_vec_bic[i].second.begin(),result_vec_bic[i].second.begin()+6);
-        for (int j = 4; j <= kbt_idx + 4; j += 2) {
+        for (int j = 4; j <= actual_kb_idxs(kbt_idx) + 4; j += 2) {
             decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
         }
 
@@ -583,7 +646,9 @@ int main() {
     }
 
 
-    encode_bbic();
+    if (encode_bbic() != 0) {
+        return 1;
+    }
 
     cout << endl << endl << endl << endl;
     cout << "ENCODE DATA" << endl;
@@ -591,6 +656,10 @@ int main() {
 
     for (int i = 0; i < result_vec_bic.size(); i++) {
         printNucVectorBool(result_vec_bic[i].second);
+        if (verify_oligo(result_vec_bic[i].second) != 0) {
+            cout << "BAD OLIGO" << endl;
+            return 1; // BAD OLIGO
+        };
     }
 
 
