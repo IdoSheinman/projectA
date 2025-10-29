@@ -18,9 +18,6 @@ using namespace std;
 #define NUC_G 3
 
 //GLOBAL VAR
-vector<vector<bool> > mem;
-int current_vec = 0;
-
 vector<bool> data_vec;
 vector<pair<int, vector<bool> > > result_vec_bic;
 vector<Vec> parity = vector<Vec>();
@@ -61,10 +58,6 @@ void printNucVectorBool(vector<bool> vec) {
 }
 
 bool areEqual(const vector<bool> &vec1, const vector<bool> &vec2, bool verbose = false) {
-    /* if (vec1.size() != vec2.size()) {
-         cout << "The vectors have different sizes, so differences cannot be computed." << endl;
-         return;
-     }*/
     if (verbose) {
         cout << "Differences between the vectors:" << endl;
     }
@@ -93,6 +86,7 @@ int restart_param(int m, int k) {
     used_all_data = false;
     dummy_bit_counter = 0;
     // BBIC
+    // valid indexes for knuth balance idx
     kb_idxs[0] = 2; // AC
     kb_idxs[1] = 3; // AG
     kb_idxs[2] = 6; // TC
@@ -199,17 +193,16 @@ int add_bbic_bit(int ol_i) {
 
     for (int l = 2 * size_m + 1; l < it->second.size(); l += 2 * size_m) {
         if (is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l)) {
-            // TODO: Shouldnt this be l-1?
+            // TODO: Shouldnt this be l-1
             it->second[l] = !(it->second[l - 2]);
         } else {
             d_i++;
-            //cout << "ADDING Q BIT IN: " << l << " from: " << i_e+d_i << endl;
             if (i_e + d_i < data_vec.size()) {
                 it->second[l] = data_vec[i_e + d_i];
                 if (i_e + d_i == data_vec.size() - 1) {
                     used_all_data = true;
                 }
-            } //if the last???
+            }
             else {
                 cout << "ADD DUMMY BITS" << endl;
                 it->second[l] = add_dummy_bits(); //need to see what val at the end
@@ -309,7 +302,6 @@ int decode_bic() {
 void fill_random_data() {
     // Constants for 0 to 1 MB size in bits
     const size_t MAX_BITS = 128 * 8 * 8; // 1 KB in bits
-    // const size_t MAX_BITS = 8 * 8 * 8; // 1 KB in bits
 
     // Seed random number generator
     random_device rd; // Random device for seed
@@ -318,38 +310,17 @@ void fill_random_data() {
     uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
 
     // Generate a random size
-    size_t random_size = 128 * 8 * 8 * 3; //size_dist(gen);
+    size_t test_size = 128 * 8 * 8 * 3; //size_dist(gen);
 
     // Resize the vector
-    data_vec.resize(random_size);
+    data_vec.resize(test_size);
 
     // Fill with random values
-    for (size_t i = 0; i < random_size; ++i) {
+    for (size_t i = 0; i < test_size; ++i) {
         data_vec[i] = static_cast<bool>(bit_dist(gen));
     }
 }
 
-int pad_till_success(vector<bool> data) {
-    int counter = 0;
-    while (!areEqual(data_vec, decoded_vec_bic)) {
-        data_vec = data;
-        size_n = data_vec.size();
-        for (int i = 0; i < counter; ++i) {
-            data_vec.insert(data_vec.end(), 1, 0);
-        }
-
-        decoded_vec_bic = vector<bool>();
-        restart_param(3, 10);
-        if (2 * size_m >= size_k) {
-            cout << "K and M is invalid" << endl;
-            cin;
-        }
-        encode_bic();
-        decode_bic();
-        counter += 1;
-    }
-    return counter;
-}
 
 
 int find_best_idx(int idx) {
@@ -397,20 +368,7 @@ void knuth_balance(int idx) {
     }
 
     int idx_to_balance = 0;
-    // TODO: Maybe the find_best_idx part makes this irrelevant
-    // int too_many_ones = (one_cnt - zero_cnt) / 2;
-    // int tmp = 0;
-    // for (idx_to_balance = 0; idx_to_balance < olig.size(); idx_to_balance += 2) {
-    //     if (olig[idx_to_balance] == 1) {
-    //         tmp += 1;
-    //     } else {
-    //         tmp -= 1;
-    //     }
-    //
-    //     if (tmp == too_many_ones) {
-    //         break;
-    //     }
-    // } // Find index to flip, where after flipping itll be balanced
+
     idx_to_balance = find_best_idx(idx);
     for (int i = 0; i <= idx_to_balance; i += 2) {
         result_vec_bic[idx].second[i] = !result_vec_bic[idx].second[i];
@@ -421,11 +379,8 @@ void knuth_balance(int idx) {
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 2) >> 1) & 1);
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 4) >> 2) & 1);
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 8) >> 3) & 1);
-    // result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 16)>>4)&1);
-    // result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 32)>>5)&1);
 }
 
-// WIP
 int encode_bbic() {
     int oligo_num = 0;
     int rest;
@@ -454,36 +409,21 @@ int encode_bbic() {
 
 int decode_bbic() {
     decoded_vec_bic = vector<bool>();
-    // for (auto oligo_vec: result_vec_bic) {
     for (int i = 0; i < decoded_vec_bic_ldpc.size(); i++) {
         int kbt_idx =
-                // (result_vec_bic[i].second[0] << 5) |
-                // (result_vec_bic[i].second[1] << 4) |
                 (decoded_vec_bic_ldpc[i][0] << 3) |
                 (decoded_vec_bic_ldpc[i][1] << 2) |
                 (decoded_vec_bic_ldpc[i][2] << 1) |
                 (decoded_vec_bic_ldpc[i][3] << 0);
 
-        int ol_i = i;
-
-        // take_data_without_Q(result_vec_bic[i].first);
-        // auto it = decoded_vec_bic_ldpc.begin();
-        // for (; it != decoded_vec_bic_ldpc.end(); ++it) {
-        //     if (it->first == ol_i) {
-        //         break;
-        //     }
-        // }
-
-        // if (it == result_vec_bic.end()) {
-        //     return 1;
-        // }
         int first_q = 2 * size_m + 1;
 
 
         // add_Q_data(result_vec_bic[i].first);
         vector<bool> Q_data = vector<bool>();
         for (int l = first_q; l <= decoded_vec_bic_ldpc[i].size(); l += 2 * size_m) {
-            if (!(is_condition_1_satisfied(decoded_vec_bic_ldpc[i], l) && is_condition_2_satisfied(decoded_vec_bic_ldpc[i], l))) {
+            if (!(is_condition_1_satisfied(decoded_vec_bic_ldpc[i], l) && is_condition_2_satisfied(
+                      decoded_vec_bic_ldpc[i], l))) {
                 Q_data.insert(Q_data.end(), 1, decoded_vec_bic_ldpc[i][l]);
             }
         }
@@ -522,7 +462,6 @@ int encode_ldpc() {
         if (result_vec_bic.size() - i < 8) {
             p = result_vec_bic.size() - i;
         }
-        // TODO: Should be 24 bits long instead of 26
         par_1 = {
             0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0,
@@ -544,8 +483,7 @@ int encode_ldpc() {
             0, 0, 0, 0, 0, 0, 0, 0
         }; // K=8
 
-        // TODO: Make this 24 2*size_k+4 dynamic
-        for (int j = 0; j < 24; j++) {
+        for (int j = 0; j < 2 * size_k + 4; j++) {
             bool ignored = false;
             Vec word = {0, 0, 0, 0, 0, 0, 0, 0}; // K=8
             for (int k = 0; k < p; k++) {
@@ -578,34 +516,6 @@ int encode_ldpc() {
 
     return 0;
 }
-// TODO: this currently isnt ordered correctly. should be  take_data_without_Q -> balance -> add_Q_data. based on decode_bbic.
-// int decode_bbic_ldpc() {
-//     decoded_vec_bic = vector<bool>();
-//     for (int i = 0; i < decoded_vec_bic_ldpc.size(); i++) {
-//         int kbt_idx =
-//                 // (decoded_vec_bic_ldpc[i][0] << 5) +
-//                 // (decoded_vec_bic_ldpc[i][1] << 4) +
-//                 (decoded_vec_bic_ldpc[i][0] << 3) +
-//                 (decoded_vec_bic_ldpc[i][1] << 2) +
-//                 (decoded_vec_bic_ldpc[i][2] << 1) +
-//                 (decoded_vec_bic_ldpc[i][3] << 0);
-//         for (int j = 4; j <= 4 + kbt_idx; j += 2) {
-//             decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
-//         }
-//         decoded_vec_bic_ldpc[i].erase(decoded_vec_bic_ldpc[i].begin(), decoded_vec_bic_ldpc[i].begin() + 4);
-//
-//         for (int k = 0; k < result_vec_bic.size(); k++) {
-//             if (result_vec_bic[k].first == i) {
-//                 result_vec_bic[k].second = decoded_vec_bic_ldpc[i];
-//                 break;
-//             }
-//         }
-//         take_data_without_Q(result_vec_bic[i].first);
-//         add_Q_data(result_vec_bic[i].first);
-//     }
-//     return 0;
-// }
-
 
 
 int decode_ldpc() {
@@ -658,116 +568,109 @@ int decode_ldpc() {
 }
 
 int main() {
-    //data_vec = vector<bool>(36, false);
-    // data_vec.insert(data_vec.begin(), 1, true); 0,0, 0 ,1, 1 ,0 ,1, 1 ,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,1, 1,0,0, 0 ,1, 1 ,0 ,
 
-    //0 0 0 1 0 1 0 1 0 1 0 0 0 1 0 1 0 0 1 1 1 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 1 1 0
-    //data_vec = {0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0};
-    //data_vec = {0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0};
-    for (int i = 0; i < 1; i++) {
-        fill_random_data();
-        // data_vec = {1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0};
-        size_n = data_vec.size();
+    fill_random_data(); //create random input data for test (must be even length)
+    //restart algo param according to paper
+    size_n = data_vec.size();
+    restart_param(3, 10);
+    decoded_vec_bic = vector<bool>();
 
-        // TODO:
-        // if (size_n % 2 == 1) {
-        //     data_vec.insert(data_vec.end(), 1, 0);
-        //     size_n = data_vec.size();
-        // }
-
-        decoded_vec_bic = vector<bool>();
-        //if (data_vec.size()%2!=0) {
-        //   data_vec.insert(data_vec.end(),1,false);
-        //}
-        restart_param(3, 10);
-        //check param
-        // size_m >= because of the knuth balance index
-        if (2 * size_m >= size_k || size_m <= 2) {
-            cout << "K and M is invalid" << endl;
-            cin;
-        }
-        //unsigned long num_i = ((size_n)+(2*size_k-size_beta)-1)/(2*size_k-size_beta);
-        encode_bbic();
-
-        cout << endl << endl << endl << endl;
-        cout << "DATA" << endl;
-        cout << endl << endl << endl << endl;
-
-        for (int i = 0; i < result_vec_bic.size(); i++) {
-            printNucVectorBool(result_vec_bic[i].second);
-        }
-
-        encode_ldpc();
-        cout << endl << endl << endl << endl;
-        cout << "PARITY:" << endl;
-        cout << endl << endl << endl << endl;
-
-        for (int i = 0; i < size(parity); i++) {
-            vector<bool> v = {
-                0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0
-            }; // K=8
-
-            for (int j = 0; j < 24; j++) {
-                v[j] = parity[i][j];
-            }
-            printNucVectorBool(v);
-        }
-       // for (int i = 0; i < size(parity) - 2; i++) {
-       //      bool flip = true;
-       //      for (int j = 0; j < 4; j++) {
-       //          if (IGNORED_POSITIONS[j] - 4 == i) {
-       //              flip = false;
-       //              break;
-       //          }
-       //      }
-       //      if (flip) {
-       //          result_vec_bic[10].second[i] = !result_vec_bic[10].second[i];
-       //      }
-       //  }
-        // Add an error to to verify ldpc error correction
-        result_vec_bic[0].second[11] = !result_vec_bic[0].second[11];
-        result_vec_bic[1].second[7] = !result_vec_bic[1].second[7];
-        result_vec_bic[1].second[2] = !result_vec_bic[1].second[2];
-        result_vec_bic[4].second[3] = !result_vec_bic[4].second[3];
-        result_vec_bic[7].second[9] = !result_vec_bic[7].second[9];
-        decode_ldpc();
-
-        // decode_bic();
-        //decode_bbic_ldpc();
-        decode_bbic();
-        cout << "----------------" << endl;
-        cout << "size_DATA: " << size_n << endl;
-        cout << "size_beta: " << size_beta << endl;
-        cout << "K: " << size_k << endl;
-        cout << "m: " << size_m << endl;
-        //cout << "need to be oligo num: " <<num_i<< endl;
-
-        // cout << "----------ORIGINAL----------" << endl;
-        // printVectorBool(data_vec);
-        // printNucVectorBool(data_vec);
-        // cout << "---------------------------" << endl;
-
-        // for (int l=0; l<result_vec_bic.size(); l++) {
-        //     cout << "i is: "<<result_vec_bic[l].first << endl;
-        //     cout << "vec is: " << endl;
-        //     printVectorBool(result_vec_bic[l].second);
-        //     printNucVectorBool(result_vec_bic[l].second);
-        // }
-
-        // cout << "----------DECODE----------" << endl;
-        // printVectorBool(decoded_vec_bic);
-        // printNucVectorBool(decoded_vec_bic);
-
-        cout << "----------EQ?----------" << endl;
-        if (!areEqual(data_vec, decoded_vec_bic, true)) {
-            return 1;
-        }
-
-        //cout << "Padded:" << pad_till_success(data_vec) << '\n';
-        areEqual(data_vec, decoded_vec_bic, true);
+    //check param
+    // size_m >= because of the knuth balance index
+    if (2 * size_m >= size_k || size_m <= 2) {
+        cout << "K and M is invalid" << endl;
+        cin;
     }
+
+
+    encode_bbic();
+
+    cout << endl << endl << endl << endl;
+    cout << "ENCODE DATA" << endl;
+    cout << endl << endl << endl << endl;
+
+    for (int i = 0; i < result_vec_bic.size(); i++) {
+        printNucVectorBool(result_vec_bic[i].second);
+    }
+
+
+
+    encode_ldpc();
+
+    cout << endl << endl << endl << endl;
+    cout << "LDPC PARITY OLIGOS:" << endl;
+    cout << endl << endl << endl << endl;
+
+    for (int i = 0; i < size(parity); i++) {
+        vector<bool> v = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0
+        }; // K=8
+
+        for (int j = 0; j < 24; j++) {
+            v[j] = parity[i][j];
+        }
+        printNucVectorBool(v);
+    }
+
+    // Add an error to to verify ldpc error correction
+    result_vec_bic[0].second[11] = !result_vec_bic[0].second[11];
+    result_vec_bic[1].second[7] = !result_vec_bic[1].second[7];
+    result_vec_bic[1].second[2] = !result_vec_bic[1].second[2];
+    result_vec_bic[4].second[3] = !result_vec_bic[4].second[3];
+    result_vec_bic[7].second[9] = !result_vec_bic[7].second[9];
+
+    decode_ldpc();
+
+    decode_bbic();
+
+    cout << "----------------" << endl;
+    cout << "size_DATA: " << size_n << endl;
+    cout << "size_beta: " << size_beta << endl;
+    cout << "K: " << size_k << endl;
+    cout << "m: " << size_m << endl;
+
+
+    cout << "----------EQ?----------" << endl;
+    if (!areEqual(data_vec, decoded_vec_bic, true)) {
+        return 1;
+    }
+
+    areEqual(data_vec, decoded_vec_bic, true);
 
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
+//garbage
+//
+// int pad_till_success(vector<bool> data) {
+//     int counter = 0;
+//     while (!areEqual(data_vec, decoded_vec_bic)) {
+//         data_vec = data;
+//         size_n = data_vec.size();
+//         for (int i = 0; i < counter; ++i) {
+//             data_vec.insert(data_vec.end(), 1, 0);
+//         }
+//
+//         decoded_vec_bic = vector<bool>();
+//         restart_param(3, 10);
+//         if (2 * size_m >= size_k) {
+//             cout << "K and M is invalid" << endl;
+//             cin;
+//         }
+//         encode_bic();
+//         decode_bic();
+//         counter += 1;
+//     }
+//     return counter;
+// }
