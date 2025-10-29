@@ -3,4 +3,8 @@ project(projectAsim)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(projectAsim main.cpp)
+add_executable(
+        projectAsim
+        main.cpp
+        ldpc.cpp
+)

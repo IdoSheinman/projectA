@@ -310,7 +310,7 @@ void fill_random_data() {
     uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
 
     // Generate a random size
-    size_t test_size = 128 * 8 * 8 * 3; //size_dist(gen);
+    size_t test_size = size_dist(gen) * 8;
 
     // Resize the vector
     data_vec.resize(test_size);
