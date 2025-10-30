@@ -572,7 +572,7 @@ int decode_bbic()
 // Q data
 int IGNORED_POSITIONS[] = {6, 10, 14, 18};
 // Algo 5-6
-int balance_parity_oligo(Vec& parity_oligo)
+int balance_parity_oligo(Vec& parity_oligo, int x)
 /**
  * We balance the parity oligo not with the knuth balance technique but rather
  * by inserting errors. THIS MAY LEAD TO DECODING errors if we are unlucky.
@@ -609,22 +609,8 @@ int balance_parity_oligo(Vec& parity_oligo)
         }
     }
     // Handle edge case of 8 AT/CG before bbic bits
-    if (current_balance > 3) {
-        for (int i=0;i<parity_oligo.size();i+=2) {
-            if (parity_oligo[i] == 0) {
-                parity_oligo[i] = !parity_oligo[i];
-                return 0;
-            }
-        }
-    }
-
-    if (current_balance < -3) {
-        for (int i=0;i<parity_oligo.size();i+=2) {
-            if (parity_oligo[i] == 1) {
-                parity_oligo[i] = !parity_oligo[i];
-                return 0;
-            }
-        }
+    if (current_balance < -3 || current_balance > 3) {
+        parity_oligo[IGNORED_POSITIONS[x]-2] = !parity_oligo[IGNORED_POSITIONS[x]-2];
     }
     return 0;
 }
@@ -691,10 +677,10 @@ int encode_ldpc()
             }
         }
 
-        balance_parity_oligo(par_1);
-        balance_parity_oligo(par_2);
-        balance_parity_oligo(par_3);
-        balance_parity_oligo(par_4);
+        balance_parity_oligo(par_1,0);
+        balance_parity_oligo(par_2,1);
+        balance_parity_oligo(par_3,2);
+        balance_parity_oligo(par_4,3);
 
         parity.emplace_back(par_1);
         parity.emplace_back(par_2);
@@ -763,96 +749,103 @@ int decode_ldpc()
 }
 
 int main() {
+    for (int i=0; i<50; i++) {
+        result_vec_bic.clear();
+        data_vec.clear();
+        result_vec_bic.clear();
+        parity.clear();
+        decoded_vec_bic.clear();
+        decoded_vec_bic_ldpc.clear();
 
-    fill_random_data(); //create random input data for test (must be even length)
-    //restart algo param according to paper
-    size_n = data_vec.size();
-    restart_param(3, 10);
-    decoded_vec_bic = vector<bool>();
+        fill_random_data(); //create random input data for test (must be even length)
+        //restart algo param according to paper
+        size_n = data_vec.size();
+        restart_param(3, 10);
+        decoded_vec_bic = vector<bool>();
 
-    //check param
-    // size_m >= because of the knuth balance index
-    if (2 * size_m >= size_k || size_m <= 2) {
-        cout << "K and M is invalid" << endl;
-        cin;
-    }
-
-
-    if (encode_bbic() != 0) {
-        return 1;
-    }
-
-    cout << endl << endl << endl << endl;
-    cout << "ENCODE DATA" << endl;
-    cout << endl << endl << endl << endl;
-
-    for (int i = 0; i < result_vec_bic.size(); i++) {
-        printNucVectorBool(result_vec_bic[i].second);
-        if (verify_oligo(result_vec_bic[i].second) != 0) {
-            cout << "BAD OLIGO" << endl;
-            return 1; // BAD OLIGO
-        };
-    }
-
-
-
-    encode_ldpc();
-
-    cout << endl << endl << endl << endl;
-    cout << "LDPC PARITY OLIGOS:" << endl;
-    cout << endl << endl << endl << endl;
-
-    for (int i = 0; i < size(parity); i++) {
-        vector<bool> v = {
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0
-        }; // K=8
-
-        for (int j = 0; j < 24; j++) {
-            v[j] = parity[i][j];
+        //check param
+        // size_m >= because of the knuth balance index
+        if (2 * size_m >= size_k || size_m <= 2) {
+            cout << "K and M is invalid" << endl;
+            cin;
         }
-        printNucVectorBool(v);
-        if (verify_oligo(v) != 0) {
-            cout << "BAD VERIFY" << endl;
-            return 1; // BAD VERIFY
-        };
 
+
+        if (encode_bbic() != 0) {
+            return 1;
+        }
+
+        cout << endl << endl << endl << endl;
+        cout << "ENCODE DATA" << endl;
+        cout << endl << endl << endl << endl;
+
+        for (int i = 0; i < result_vec_bic.size(); i++) {
+            // printNucVectorBool(result_vec_bic[i].second);
+            if (verify_oligo(result_vec_bic[i].second) != 0) {
+                cout << "BAD OLIGO" << endl;
+                return 1; // BAD OLIGO
+            };
+        }
+
+
+
+        encode_ldpc();
+
+        cout << endl << endl << endl << endl;
+        cout << "LDPC PARITY OLIGOS:" << endl;
+        cout << endl << endl << endl << endl;
+
+        for (int i = 0; i < size(parity); i++) {
+            vector<bool> v = {
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0
+            }; // K=8
+
+            for (int j = 0; j < 24; j++) {
+                v[j] = parity[i][j];
+            }
+            // printNucVectorBool(v);
+            if (verify_oligo(v) != 0) {
+                cout << "BAD VERIFY" << endl;
+                return 1; // BAD VERIFY
+            };
+
+        }
+
+        // Insert errors for testing ldpc error correction
+        // Note: There are errors that appear statistically due to the
+        //       CG constraint on the parity bits. We insert them
+        //       in a position dependent on the data (random data we generate)
+        //       This can cause the error to appear in the same column as an
+        //       error we insert here, which would result in wrong data
+        //       being recovered.
+        for (int x=0; x<result_vec_bic.size(); x+=16) {
+            result_vec_bic[x+1].second[2] = !result_vec_bic[x+1].second[2];
+            result_vec_bic[x+2].second[5] = !result_vec_bic[x+1].second[5];
+            result_vec_bic[x+7].second[9] = !result_vec_bic[x+7].second[9];
+            result_vec_bic[x+4].second[12] = !result_vec_bic[x+4].second[12];
+            result_vec_bic[x+5].second[8] = !result_vec_bic[x+5].second[8];
+        }
+
+        decode_ldpc();
+
+        decode_bbic();
+
+        cout << "----------------" << endl;
+        cout << "size_DATA: " << size_n << endl;
+        cout << "size_beta: " << size_beta << endl;
+        cout << "K: " << size_k << endl;
+        cout << "m: " << size_m << endl;
+
+
+        cout << "----------EQ?----------" << endl;
+        if (!areEqual(data_vec, decoded_vec_bic, true)) {
+            return 1;
+        }
+
+        areEqual(data_vec, decoded_vec_bic, true);
     }
-
-    // Insert errors for testing ldpc error correction
-    // Note: There are errors that appear statistically due to the
-    //       CG constraint on the parity bits. We insert them
-    //       in a position dependent on the data (random data we generate)
-    //       This can cause the error to appear in the same column as an
-    //       error we insert here, which would result in wrong data
-    //       being recovered.
-    for (int x=0; x<500; x+=16) {
-        result_vec_bic[x+1].second[2] = !result_vec_bic[x+1].second[2];
-        result_vec_bic[x+4].second[3] = !result_vec_bic[x+4].second[3];
-        result_vec_bic[x+7].second[9] = !result_vec_bic[x+7].second[9];
-        result_vec_bic[x+4].second[12] = !result_vec_bic[x+4].second[12];
-        result_vec_bic[x+5].second[13] = !result_vec_bic[x+5].second[13];
-    }
-
-    decode_ldpc();
-
-    decode_bbic();
-
-    cout << "----------------" << endl;
-    cout << "size_DATA: " << size_n << endl;
-    cout << "size_beta: " << size_beta << endl;
-    cout << "K: " << size_k << endl;
-    cout << "m: " << size_m << endl;
-
-
-    cout << "----------EQ?----------" << endl;
-    if (!areEqual(data_vec, decoded_vec_bic, true)) {
-        return 1;
-    }
-
-    areEqual(data_vec, decoded_vec_bic, true);
-
     return 0;
 }
 
