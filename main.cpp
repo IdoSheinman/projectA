@@ -31,13 +31,6 @@ int kb_idxs[8];
 
 bool add_dummy_bits();
 
-void printVectorBool(const vector<bool> &vec) {
-    for (bool val: vec) {
-        cout << val << " ";
-    }
-    cout << endl;
-}
-
 void printNucVectorBool(vector<bool> vec) {
     auto it = vec.begin();
     for (; (it != vec.end()) && (it + 1 != vec.end()); it = it + 2) {
@@ -97,7 +90,13 @@ bool areEqual(const vector<bool> &vec1, const vector<bool> &vec2, bool verbose =
     return !hasDifferences;
 }
 
-int restart_param(int m, int k) {
+int restart_param(int m, int k)
+/**
+ * Initialize the input parameters.
+ * :param m: longest allowed RL value.
+ * :param k: As appears in the paper.
+ */
+{
     size_m = m;
     size_k = k;
     size_beta = (size_k + size_m - 1) / size_m - 1;
@@ -106,7 +105,8 @@ int restart_param(int m, int k) {
     used_all_data = false;
     dummy_bit_counter = 0;
     // BBIC
-    // valid indexes for knuth balance idx
+    // We want the knuth balance indexes we write to the oligo
+    // to be CG/AT balanced (1 CG and 1 AT)
     kb_idxs[0] = 2; // AC
     kb_idxs[1] = 3; // AG
     kb_idxs[2] = 6; // TC
@@ -120,10 +120,13 @@ int restart_param(int m, int k) {
     return 0;
 }
 
-int actual_kb_idxs(int stored_idx) {
-    if (stored_idx == 1) {
-        return 2;
-    }
+int real_kb_idxs(int stored_idx)
+/**
+ * After writing CG/AT balanced values, we want to actually use
+ * optimal knuth_balance indexes and not use non-optimal indexes just because they are balanced.
+ * This converts the optimal for writing to optimal for using indexes.
+ */
+{
     if (stored_idx == kb_idxs[0]) {
         return 0;
     }
@@ -151,15 +154,24 @@ int actual_kb_idxs(int stored_idx) {
     return -1;
 }
 
-int addEmptyItems(std::vector<bool> &result, int m) {
+int addEmptyItems(std::vector<bool> &result, int m)
+/**
+ * Fills result with zeros up to its size.
+ */
+{
     for (int i = 2 * m + 1 - 4; i <= result.size(); i += 2 * m) {
         result.insert(result.begin() + i, false);
     }
-    //result.resize(2*size_k);
     return 0;
 }
 
-int copy_data_without_Q(int ol_i) {
+int copy_data_without_Q(int ol_i)
+/**
+ * this writes the raw data into the oligo, while not writing anything
+ * for the Q indexes.
+ * :param ol_i: the index of the oligo to fill.
+ */
+{
     auto it = result_vec_bic.begin();
     for (; it != result_vec_bic.end(); it++) {
         if (it->first == ol_i) {
@@ -185,7 +197,13 @@ int copy_data_without_Q(int ol_i) {
 }
 
 
-bool is_condition_1_satisfied(vector<bool> oli, int position) {
+bool is_condition_1_satisfied(vector<bool> oli, int position)
+/**
+ * Check for condition 1 as appears in the paper in page 768.
+ * :param oli: The index of the oligo to check.
+ * :param position: The index of the position to check (where the Q value is inserted.
+ */
+{
     int first_upper_pos = position - (2 * size_m + 1);
     int first_lower_pos = position - (2 * size_m);
 
@@ -223,12 +241,23 @@ bool is_condition_1_satisfied(vector<bool> oli, int position) {
     return false;
 }
 
-bool is_condition_2_satisfied(vector<bool> oli, int position) {
+bool is_condition_2_satisfied(vector<bool> oli, int position)
+/**
+ * Check for condition 2 as appears in the paper in page 768.
+ * :param oli: The index of the oligo to check.
+ * :param position: The index of the position to check (where the Q value is inserted.
+ */
+{
     return (oli[position - 1] == oli[position - 3]);
 }
 
 
-int add_bbic_bit(int ol_i) {
+int add_bbic_bits(int ol_i)
+/**
+ * This function write into the bbic positions their correct values ( either stops a sequence of repeating ATCG or data )
+ * :param ol_i: The  oligo index
+ */
+{
     int d_i = 0;
     auto it = result_vec_bic.begin();
     for (; it != result_vec_bic.end(); it++) {
@@ -243,10 +272,13 @@ int add_bbic_bit(int ol_i) {
     }
 
     for (int l = 2 * size_m + 1; l < it->second.size(); l += 2 * size_m) {
+        // If need to stop sequence.
         if (is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l)) {
             // TODO: Shouldnt this be l-1
             it->second[l] = !(it->second[l - 2]);
-        } else {
+        }
+        // Else can fill data
+        else {
             d_i++;
             if (i_e + d_i < data_vec.size()) {
                 it->second[l] = data_vec[i_e + d_i];
@@ -254,6 +286,7 @@ int add_bbic_bit(int ol_i) {
                     used_all_data = true;
                 }
             }
+            // We want to fill data but there is no more data to fill
             else {
                 cout << "ADD DUMMY BITS" << endl;
                 it->second[l] = add_dummy_bits(); //need to see what val at the end
@@ -264,42 +297,22 @@ int add_bbic_bit(int ol_i) {
     return d_i;;
 }
 
-bool add_dummy_bits() {
+bool add_dummy_bits()
+/**
+ * This gives us dummy bits to read if there is no more data, in a way that doesnt create long running A(/C/T/G) only sequences.
+ */
+{
     used_all_data = true;
     bool dummy_arr[] = {false, false, false, true, true, false, true, true};
-    //data_vec.insert(data_vec.end(),1,dummy_arr[counter % 8]);
-    //counter++;
-    //size_n = data_vec.size();
     return dummy_arr[dummy_bit_counter % 8];
 }
 
-int encode_bic() {
-    int oligo_num = 1;
-    int rest;
-
-    while (!used_all_data) {
-        i_e = i_s + 2 * size_k - size_beta - 1;
-        vector<bool> oligo(2 * size_k - size_beta);
-        // Add the pair (i, oligo) to result_vec
-        result_vec_bic.emplace_back(oligo_num, oligo);
-
-        if (!copy_data_without_Q(oligo_num)) {
-            int added = add_bbic_bit(oligo_num);
-            i_s = i_e + 1 + added;
-        } else {
-            return 1;
-        }
-        oligo_num++;
-        rest = signed(data_vec.size() - i_s);
-        if (rest <= 0) {
-            used_all_data = true;
-        }
-    }
-
-    return 0;
-}
-
-int add_Q_data(int ol_i) {
+int decode_Q_data(int ol_i)
+/**
+ * Retrieves the data encoded in a given bbic oligos Q bits, and inserts them into decoded_vec_bic.
+ * :param ol_i: The oligo index.
+ */
+{
     unsigned int first_q = 2 * size_m + 1;
     auto it = result_vec_bic.begin();
     for (; it != result_vec_bic.end(); it++) {
@@ -320,7 +333,12 @@ int add_Q_data(int ol_i) {
 }
 
 
-int take_data_without_Q(int ol_i) {
+int take_data_without_Q(int ol_i)
+/**
+ * Retrieves the data encoded in a given bbic oligos non-Q bits, and inserts them into decoded_vec_bic.
+ * :param ol_i: The oligo index.
+ */
+{
     auto it = result_vec_bic.begin();
     for (; it != result_vec_bic.end(); ++it) {
         if (it->first == ol_i) {
@@ -341,15 +359,11 @@ int take_data_without_Q(int ol_i) {
     return 0;
 }
 
-int decode_bic() {
-    for (auto oligo_vec: result_vec_bic) {
-        take_data_without_Q(oligo_vec.first);
-        add_Q_data(oligo_vec.first);
-    }
-    return 0;
-}
-
-void fill_random_data() {
+void fill_random_data()
+/**
+ * This function creates random data for us to encode and decode to verify our success.
+ */
+{
     // Constants for 0 to 1 MB size in bits
     const size_t MAX_BITS = 128 * 8 * 8; // 1 KB in bits
 
@@ -373,13 +387,19 @@ void fill_random_data() {
 
 
 
-int find_best_idx(int idx) {
+int find_best_idx(int idx)
+/**
+ * This function finds the best index, for a given idx,
+ * to knuth balance it out of the possible values.
+ * :param idx: The index of the oligo to find the best index for.
+ */
+{
     vector<bool> olig = result_vec_bic[idx].second;
     int scores[8] = {0};
     for (int i = 0; i < 8; i++) {
         vector<bool> tmp_olig;
         copy(olig.begin(), olig.end(), back_inserter(tmp_olig));
-        for (int j = 0; j <= actual_kb_idxs(kb_idxs[i]); j += 2) {
+        for (int j = 0; j <= real_kb_idxs(kb_idxs[i]); j += 2) {
             tmp_olig[j].flip();
         }
         int counter = 0;
@@ -403,7 +423,12 @@ int find_best_idx(int idx) {
     return kb_idxs[index];
 }
 
-int verify_oligo(vector<bool> oligo) {
+int verify_oligo(vector<bool> oligo)
+/**
+ * Verifies the given oligo is valid (RL and CG constraints are satisified)
+ * :param oligo: The oligo ( a vector of 0/1s)
+ */
+{
     int atcg_counts[4] = {0, 0, 0, 0};
 
     for (int x=0; x<oligo.size(); x+=2) {
@@ -437,7 +462,13 @@ int verify_oligo(vector<bool> oligo) {
 }
 
 
-void knuth_balance(int idx) {
+void knuth_balance(int idx)
+/**
+ * Flips bits according to the knuth balance technique and inserts the knuth balance index in the beggining of the
+ * given oligo.
+ * :param idx: The index of the oligo to balance.
+ */
+{
     vector<bool> olig = result_vec_bic[idx].second;
     int zero_cnt = 0;
     int one_cnt = 0;
@@ -453,7 +484,7 @@ void knuth_balance(int idx) {
     int idx_to_balance = 0;
 
     idx_to_balance = find_best_idx(idx);
-    for (int i = 0; i <= actual_kb_idxs(idx_to_balance); i += 2) {
+    for (int i = 0; i <= real_kb_idxs(idx_to_balance); i += 2) {
         result_vec_bic[idx].second[i] = !result_vec_bic[idx].second[i];
     }
 
@@ -464,7 +495,11 @@ void knuth_balance(int idx) {
     result_vec_bic[idx].second.emplace(result_vec_bic[idx].second.begin(), ((idx_to_balance & 8) >> 3) & 1);
 }
 
-int encode_bbic() {
+int encode_bbic()
+/**
+ * Encodes the data into valid bbic oligos.
+ */
+{
     int oligo_num = 0;
     int rest;
     int oligo_data_size = 2 * size_k - size_beta;
@@ -475,7 +510,7 @@ int encode_bbic() {
         result_vec_bic.emplace_back(oligo_num, oligo);
         if (!copy_data_without_Q(oligo_num)) {
             knuth_balance(oligo_num);
-            int added = add_bbic_bit(oligo_num); //add q bits
+            int added = add_bbic_bits(oligo_num); //add q bits
             i_s = i_e + 1 + added;
         } else {
             return 1;
@@ -490,7 +525,11 @@ int encode_bbic() {
     return 0;
 }
 
-int decode_bbic() {
+int decode_bbic()
+/**
+ * Decodes the encoded bbic oligos back into data.
+ */
+{
     decoded_vec_bic = vector<bool>();
     for (int i = 0; i < decoded_vec_bic_ldpc.size(); i++) {
         int kbt_idx =
@@ -502,7 +541,7 @@ int decode_bbic() {
         int first_q = 2 * size_m + 1;
 
 
-        // add_Q_data(result_vec_bic[i].first);
+        // add_Q_data
         vector<bool> Q_data = vector<bool>();
         for (int l = first_q; l <= decoded_vec_bic_ldpc[i].size(); l += 2 * size_m) {
             if (!(is_condition_1_satisfied(decoded_vec_bic_ldpc[i], l) && is_condition_2_satisfied(
@@ -511,12 +550,11 @@ int decode_bbic() {
             }
         }
 
-        //result_vec_bic[i].second.erase(result_vec_bic[i].second.begin(),result_vec_bic[i].second.begin()+6);
-        for (int j = 4; j <= actual_kb_idxs(kbt_idx) + 4; j += 2) {
+        for (int j = 4; j <= real_kb_idxs(kbt_idx) + 4; j += 2) {
             decoded_vec_bic_ldpc[i][j] = !decoded_vec_bic_ldpc[i][j];
         }
 
-        // take_data_without_Q(result_vec_bic[i].first);
+        // take_data_without_Q
         for (int l = 4; l < 2 * size_k + 4; l++) {
             if (l < first_q || ((l - first_q) % (2 * size_m) != 0)) {
                 decoded_vec_bic.insert(decoded_vec_bic.end(), 1, decoded_vec_bic_ldpc[i][l]);
@@ -524,7 +562,7 @@ int decode_bbic() {
         }
 
 
-        // add_Q_data(result_vec_bic[i].first);
+        // add_Q_data
         decoded_vec_bic.insert(decoded_vec_bic.end(), Q_data.begin(), Q_data.end());
     }
     return 0;
@@ -534,8 +572,14 @@ int decode_bbic() {
 // Q data
 int IGNORED_POSITIONS[] = {6, 10, 14, 18};
 // Algo 5-6
-int balance_parity_oligo(Vec& parity_oligo) {
-    printNucVectorBool(parity_oligo);
+int balance_parity_oligo(Vec& parity_oligo)
+/**
+ * We balance the parity oligo not with the knuth balance technique but rather
+ * by inserting errors. THIS MAY LEAD TO DECODING errors if we are unlucky.
+ * (Specifically if two oligos used together for decoding have an error in the same index we may have an error).
+ * :param parity_oligo: The oligo to balance.
+*/
+{
     int current_balance = 0;
     for (int i=0;i<parity_oligo.size();i+=2) {
         bool skip=false;
@@ -582,12 +626,16 @@ int balance_parity_oligo(Vec& parity_oligo) {
             }
         }
     }
-    printNucVectorBool(parity_oligo);
     return 0;
 }
 
 // currently for every 8 data oligos we use 4 parity oligos
-int encode_ldpc() {
+int encode_ldpc()
+/**
+ * Takes the encoded BBIC oligos and creates parity bits for them using LDPC algorithm.
+ * The parity oligos satisfy the RL and CG constraints for the price of possible failures to decode.
+ */
+{
     Vec par_1;
     Vec par_2;
     Vec par_3;
@@ -658,7 +706,13 @@ int encode_ldpc() {
 }
 
 
-int decode_ldpc() {
+int decode_ldpc()
+/**
+ * Decodes the given LDPC encoded oligos. If a group of oligos and parity oligos fails to decode
+ * (because of errors inserted in the oligos / parity bits) we ignore the
+ * parity oligos (as our LDPC code (/ matrix) is systematic).
+ */
+{
     for (int i = 0; i < result_vec_bic.size(); i += 8) {
         bool tmp[8][24] = {false};
 
@@ -766,14 +820,14 @@ int main() {
 
     }
 
-    // Insert errors to to verify ldpc error correction
+    // Insert errors for testing ldpc error correction
     // Note: There are errors that appear statistically due to the
     //       CG constraint on the parity bits. We insert them
     //       in a position dependent on the data (random data we generate)
     //       This can cause the error to appear in the same column as an
     //       error we insert here, which would result in wrong data
     //       being recovered.
-    for (int x=0;x<500;x+=8) {
+    for (int x=0; x<500; x+=16) {
         result_vec_bic[x+1].second[2] = !result_vec_bic[x+1].second[2];
         result_vec_bic[x+4].second[3] = !result_vec_bic[x+4].second[3];
         result_vec_bic[x+7].second[9] = !result_vec_bic[x+7].second[9];
@@ -833,4 +887,48 @@ int main() {
 //         counter += 1;
 //     }
 //     return counter;
+// }
+
+
+// int encode_bic()
+// /**
+//  * Fills result_vec_bic withc valid bbic oligos.
+//  */
+// {
+//     int oligo_num = 1;
+//     int rest;
+//
+//     while (!used_all_data) {
+//         i_e = i_s + 2 * size_k - size_beta - 1;
+//         vector<bool> oligo(2 * size_k - size_beta);
+//         // Add the pair (i, oligo) to result_vec
+//         result_vec_bic.emplace_back(oligo_num, oligo);
+//
+//         if (!copy_data_without_Q(oligo_num)) {
+//             int added = add_bbic_bits(oligo_num);
+//             i_s = i_e + 1 + added;
+//         } else {
+//             return 1;
+//         }
+//         oligo_num++;
+//         rest = signed(data_vec.size() - i_s);
+//         if (rest <= 0) {
+//             used_all_data = true;
+//         }
+//     }
+//
+//     return 0;
+// }
+//
+// int decode_bic()
+// /**
+//  * Retrieves the data encoded results_vec_bicc.
+//  * :param ol_i: The oligo index.
+//  */
+// {
+//     for (auto oligo_vec: result_vec_bic) {
+//         take_data_without_Q(oligo_vec.first);
+//         decode_Q_data(oligo_vec.first);
+//     }
+//     return 0;
 // }
