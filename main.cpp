@@ -570,7 +570,7 @@ int decode_bbic()
 
 
 // Q data
-int IGNORED_POSITIONS[] = {6, 10, 14, 18};
+int IGNORED_POSITIONS[] = {6, 10, 12, 14, 18};
 // Algo 5-6
 int balance_parity_oligo(Vec& parity_oligo, int x)
 /**
@@ -583,7 +583,7 @@ int balance_parity_oligo(Vec& parity_oligo, int x)
     int current_balance = 0;
     for (int i=0;i<parity_oligo.size();i+=2) {
         bool skip=false;
-        for (int j=0;j<4;j++) {
+        for (int j=0;j<5;j++) {
             if (i == IGNORED_POSITIONS[j]) {
                 skip=true;
             }
@@ -599,7 +599,7 @@ int balance_parity_oligo(Vec& parity_oligo, int x)
         }
     }
 
-    for (int i=0;i<4;i++) {
+    for (int i=0;i<5;i++) {
         if (current_balance > 0) { // More 0s
             parity_oligo[IGNORED_POSITIONS[i]] = 1;
             current_balance -= 1;
@@ -607,10 +607,6 @@ int balance_parity_oligo(Vec& parity_oligo, int x)
             parity_oligo[IGNORED_POSITIONS[i]] = 0;
             current_balance += 1;
         }
-    }
-    // Handle edge case of 8 AT/CG before bbic bits
-    if (current_balance < -3 || current_balance > 3) {
-        parity_oligo[IGNORED_POSITIONS[x]-2] = !parity_oligo[IGNORED_POSITIONS[x]-2];
     }
     return 0;
 }
@@ -749,10 +745,9 @@ int decode_ldpc()
 }
 
 int main() {
-    for (int i=0; i<50; i++) {
+    for (int i=0; i<200; i++) {
         result_vec_bic.clear();
         data_vec.clear();
-        result_vec_bic.clear();
         parity.clear();
         decoded_vec_bic.clear();
         decoded_vec_bic_ldpc.clear();
@@ -780,14 +775,12 @@ int main() {
         cout << endl << endl << endl << endl;
 
         for (int i = 0; i < result_vec_bic.size(); i++) {
-            // printNucVectorBool(result_vec_bic[i].second);
+            printNucVectorBool(result_vec_bic[i].second);
             if (verify_oligo(result_vec_bic[i].second) != 0) {
                 cout << "BAD OLIGO" << endl;
                 return 1; // BAD OLIGO
             };
         }
-
-
 
         encode_ldpc();
 
@@ -795,7 +788,7 @@ int main() {
         cout << "LDPC PARITY OLIGOS:" << endl;
         cout << endl << endl << endl << endl;
 
-        for (int i = 0; i < size(parity); i++) {
+        for (int i = 0; i < parity.size(); i++) {
             vector<bool> v = {
                 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0,
@@ -805,12 +798,11 @@ int main() {
             for (int j = 0; j < 24; j++) {
                 v[j] = parity[i][j];
             }
-            // printNucVectorBool(v);
+            printNucVectorBool(v);
             if (verify_oligo(v) != 0) {
                 cout << "BAD VERIFY" << endl;
                 return 1; // BAD VERIFY
             };
-
         }
 
         // Insert errors for testing ldpc error correction
@@ -820,12 +812,11 @@ int main() {
         //       This can cause the error to appear in the same column as an
         //       error we insert here, which would result in wrong data
         //       being recovered.
-        for (int x=0; x<result_vec_bic.size(); x+=16) {
+        for (int x=0; x<result_vec_bic.size() - 8; x+=8) {
             result_vec_bic[x+1].second[2] = !result_vec_bic[x+1].second[2];
-            result_vec_bic[x+2].second[5] = !result_vec_bic[x+1].second[5];
-            result_vec_bic[x+7].second[9] = !result_vec_bic[x+7].second[9];
-            result_vec_bic[x+4].second[12] = !result_vec_bic[x+4].second[12];
-            result_vec_bic[x+5].second[8] = !result_vec_bic[x+5].second[8];
+            result_vec_bic[x+2].second[4] = !result_vec_bic[x+2].second[4];
+            result_vec_bic[x+7].second[8] = !result_vec_bic[x+7].second[8];
+            result_vec_bic[x+5].second[20] = !result_vec_bic[x+5].second[20];
         }
 
         decode_ldpc();
