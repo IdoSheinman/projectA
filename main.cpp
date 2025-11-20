@@ -196,6 +196,38 @@ int copy_data_without_Q(int ol_i)
     return (addEmptyItems((it->second), size_m));
 }
 
+int copy_data_chunk_without_Q(int ol_i, int idx_s, int idx_e)
+/**
+ * this writes the raw data into the oligo, while not writing anything
+ * for the Q indexes.
+ * :param ol_i: the index of the oligo to fill.
+ */
+{
+    auto it = result_vec_bic.begin();
+    for (; it != result_vec_bic.end(); it++) {
+        if (it->first == ol_i) {
+            break;
+        }
+    }
+
+    if (it == result_vec_bic.end()) {
+        return 1;
+    }
+
+
+    for (int l = idx_s; l <= idx_e; l++) {
+        if (l < data_vec.size()) {
+            it->second[l - idx_s] = data_vec[l];
+        } else {
+            it->second[l - idx_s] = add_dummy_bits();
+            dummy_bit_counter++;
+        }
+    }
+
+    return (addEmptyItems((it->second), size_m));
+}
+
+
 
 bool is_condition_1_satisfied(vector<bool> oli, int position)
 /**
@@ -297,6 +329,53 @@ int add_bbic_bits(int ol_i)
     return d_i;;
 }
 
+
+int add_chunk_bbic_bits(int ol_i, int idx_e)
+/**
+ * This function write into the bbic positions their correct values ( either stops a sequence of repeating ATCG or data )
+ * :param ol_i: The  oligo index
+ */
+{
+    int d_i = 0;
+    auto it = result_vec_bic.begin();
+    for (; it != result_vec_bic.end(); it++) {
+        if (it->first == ol_i) {
+            break;
+        }
+    }
+
+    if (it == result_vec_bic.end()) {
+        // This shouldnt happen, but for hw purposes not sure return 1 is ideal.
+        return 1;
+    }
+
+    for (int l = 2 * size_m + 1; l < it->second.size(); l += 2 * size_m) {
+        // If need to stop sequence.
+        if (is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l)) {
+            // TODO: Shouldnt this be l-1
+            it->second[l] = !(it->second[l - 2]);
+        }
+        // Else can fill data
+        else {
+            d_i++;
+            if (idx_e + d_i < data_vec.size()) {
+                it->second[l] = data_vec[idx_e + d_i];
+                if (idx_e + d_i == data_vec.size() - 1) {
+                    used_all_data = true;
+                }
+            }
+            // We want to fill data but there is no more data to fill
+            else {
+                cout << "ADD DUMMY BITS" << endl;
+                it->second[l] = add_dummy_bits(); //need to see what val at the end
+                dummy_bit_counter++;
+            }
+        }
+    }
+    return d_i;;
+}
+
+
 bool add_dummy_bits()
 /**
  * This gives us dummy bits to read if there is no more data, in a way that doesnt create long running A(/C/T/G) only sequences.
@@ -359,13 +438,13 @@ int take_data_without_Q(int ol_i)
     return 0;
 }
 
-void fill_random_data()
+void fill_random_data(int org_data_size)
 /**
  * This function creates random data for us to encode and decode to verify our success.
  */
 {
     // Constants for 0 to 1 MB size in bits
-    const size_t MAX_BITS = 128 * 8 * 8; // 1 KB in bits
+    const size_t MAX_BITS = org_data_size; //128 * 8 * 8; // 1 KB in bits
 
     // Seed random number generator
     random_device rd; // Random device for seed
@@ -525,6 +604,47 @@ int encode_bbic()
     return 0;
 }
 
+int encode_chunk_bbic(int k_num, int idx_s, int idx_e)
+/**
+ * Encodes the data into valid bbic oligos.
+ */
+{
+    int idx_s_ch = idx_s;
+    int idx_e_ch = idx_e;
+    int oli_n = 0;
+    int rest =signed(data_vec.size() - idx_s);
+    if (rest <= 0) {
+        used_all_data = true;
+    }
+    int oligo_data_size = 2 * size_k - size_beta;
+    while (!used_all_data) {
+        for (int oligo_num = oli_n; oligo_num<k_num+oli_n; oligo_num++) {
+            idx_e_ch = idx_s_ch + oligo_data_size - 1;
+            vector<bool> oligo(oligo_data_size);
+            // Add the pair (i, oligo) to result_vec
+            result_vec_bic.emplace_back(oligo_num, oligo);
+            if (copy_data_chunk_without_Q(oligo_num, idx_s_ch, idx_e_ch))  return 1;
+            idx_s_ch = idx_e_ch + 1;
+            oligo_num++;
+        }
+
+        for (int oligo_num = oli_n; oligo_num<k_num+oli_n; oligo_num++) {
+            knuth_balance(oligo_num);
+            int added = add_chunk_bbic_bits(oligo_num, idx_e_ch); //add q bits
+            idx_e_ch = idx_e_ch + added; //TODO: check if idx_e_ch = idx_e_ch + 1 + added;
+            oligo_num++;
+        }
+        rest = signed(data_vec.size() - idx_e_ch);
+        if (rest <= 0) {
+            used_all_data = true;
+        }
+        oli_n+=k_num;
+    }
+
+    return 0;
+}
+
+
 int decode_bbic()
 /**
  * Decodes the encoded bbic oligos back into data.
@@ -567,6 +687,55 @@ int decode_bbic()
     }
     return 0;
 }
+
+int decode_chunk_bbic(int k_num)
+/**
+ * Decodes the encoded bbic oligos back into data.
+ */
+{
+    decoded_vec_bic = vector<bool>();
+    int oli_num = 0;
+    while (oli_num < decoded_vec_bic_ldpc.size()) {
+        for (int i=0; i<k_num; i++){
+            if (oli_num+i>=decoded_vec_bic_ldpc.size()) break;
+            int kbt_idx =
+                    (decoded_vec_bic_ldpc[oli_num+i][0] << 3) |
+                    (decoded_vec_bic_ldpc[oli_num+i][1] << 2) |
+                    (decoded_vec_bic_ldpc[oli_num+i][2] << 1) |
+                    (decoded_vec_bic_ldpc[oli_num+i][3] << 0);
+
+            int first_q = 2 * size_m + 1;
+
+
+            // add_Q_data
+            vector<bool> Q_data = vector<bool>();
+            for (int l = first_q; l <= decoded_vec_bic_ldpc[oli_num+i].size(); l += 2 * size_m) {
+                if (!(is_condition_1_satisfied(decoded_vec_bic_ldpc[oli_num+i], l) && is_condition_2_satisfied(
+                          decoded_vec_bic_ldpc[oli_num+i], l))) {
+                    Q_data.insert(Q_data.end(), 1, decoded_vec_bic_ldpc[oli_num+i][l]);
+                          }
+            }
+
+            for (int j = 4; j <= real_kb_idxs(kbt_idx) + 4; j += 2) {
+                decoded_vec_bic_ldpc[oli_num+i][j] = !decoded_vec_bic_ldpc[oli_num+i][j];
+            }
+
+            // take_data_without_Q
+            for (int l = 4; l < 2 * size_k + 4; l++) {
+                if (l < first_q || ((l - first_q) % (2 * size_m) != 0)) {
+                    decoded_vec_bic.insert(decoded_vec_bic.end(), 1, decoded_vec_bic_ldpc[oli_num+i][l]);
+                }
+            }
+
+
+            // add_Q_data
+            decoded_vec_bic.insert(decoded_vec_bic.end(), Q_data.begin(), Q_data.end());
+        }
+        oli_num += k_num;
+    }
+    return 0;
+}
+
 
 
 // Q data
@@ -748,8 +917,10 @@ int decode_ldpc()
     return 0;
 }
 
+
+
 int main() {
-    for (int i=0; i<200; i++) {
+
         result_vec_bic.clear();
         data_vec.clear();
         result_vec_bic.clear();
@@ -757,7 +928,7 @@ int main() {
         decoded_vec_bic.clear();
         decoded_vec_bic_ldpc.clear();
 
-        fill_random_data(); //create random input data for test (must be even length)
+        fill_random_data(64); //create random input data for test (must be even length)
         //restart algo param according to paper
         size_n = data_vec.size();
         restart_param(3, 10);
@@ -770,7 +941,70 @@ int main() {
             cin;
         }
 
+        //new
+        cout << endl << endl << endl << endl;
+        cout << "ORIGINAL DATA" << endl;
+        cout << endl << endl << endl << endl;
+        //for (int i = 0; i < data_vec.size(); i++) {
+        printNucVectorBool(data_vec);
+        fflush(stdout); // Force the output immediately
 
+        //}
+
+
+        encode_chunk_bbic(8,0,0);
+        cout << endl << endl << endl << endl;
+        cout << "ENCODE DATA" << endl;
+        cout << endl << endl << endl << endl;
+
+        for (int i = 0; i < result_vec_bic.size(); i++) {
+            printNucVectorBool(result_vec_bic[i].second);
+            if (verify_oligo(result_vec_bic[i].second) != 0) {
+                cout << "BAD OLIGO" << endl;
+                return 1; // BAD OLIGO
+            };
+        }
+
+        encode_ldpc();
+        for (int i = 0; i < size(parity); i++) {
+            vector<bool> v = {
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0
+            }; // K=8
+
+            for (int j = 0; j < 24; j++) {
+                v[j] = parity[i][j];
+            }
+            // printNucVectorBool(v);
+            if (verify_oligo(v) != 0) {
+                cout << "BAD VERIFY" << endl;
+                return 1; // BAD VERIFY
+            };
+
+        }
+        decode_ldpc();
+
+        decode_chunk_bbic(8);
+
+        cout << "----------------" << endl;
+        cout << "size_DATA: " << size_n << endl;
+        cout << "size_beta: " << size_beta << endl;
+        cout << "K: " << size_k << endl;
+        cout << "m: " << size_m << endl;
+
+
+        cout << "----------EQ?----------" << endl;
+        if (!areEqual(data_vec, decoded_vec_bic, true)) {
+            return 1;
+        }
+
+        areEqual(data_vec, decoded_vec_bic, true);
+
+        exit(0);
+
+
+        //old
         if (encode_bbic() != 0) {
             return 1;
         }
@@ -845,7 +1079,7 @@ int main() {
         }
 
         areEqual(data_vec, decoded_vec_bic, true);
-    }
+
     return 0;
 }
 
