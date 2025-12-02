@@ -765,10 +765,10 @@ int main() {
             };
         }
 
-        // encode_ldpc();
+        encode_ldpc();
 
 
-        // decode_ldpc();
+        decode_ldpc();
 
         // decode_knuth_balance();
         //print encode bbic data
@@ -802,7 +802,7 @@ int main() {
         }
 
         areEqual(data_vec_gl, restored_vec_gl, true);
-
+        parity.clear();
         // exit(0);
     }
 
