@@ -710,7 +710,7 @@ int main() {
         restored_vec_gl.clear();
 
         //data_vec_gl = {1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-        fill_random_data_vec_gl(6400/100); //create random input data for test (must be even length)
+        fill_random_data_vec_gl(6400); //create random input data for test (must be even length)
         //restart algo param according to paper
         unsigned long data_size = data_vec_gl.size();
         restart_param(3, 10, 8);
@@ -739,7 +739,7 @@ int main() {
         cout << endl;
 
         for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-            printf("%d, ", i);
+            // printf("%d, ", i);
 
             printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
         }
@@ -750,13 +750,13 @@ int main() {
         cout << "KNUTH BALANCE DATA" << endl;
         cout << endl;
         for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-            printf("%d, ", i);
+            // printf("%d, ", i);
             printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
         }
 
         // Verify oligos are balanced
         for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-            printf("%d, ", i);
+            // printf("%d, ", i);
 
             printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
             if (verify_oligo(bbic_enc_oligo_vec_gl[i].second) != 0) {
@@ -767,6 +767,23 @@ int main() {
 
         encode_ldpc();
 
+        // Check if we have enough oligos to run this loop safely
+        if (bbic_enc_oligo_vec_gl.size() > 32) {
+            for (size_t x = 0; x < bbic_enc_oligo_vec_gl.size() - 32; x += 16) {
+
+                // Safety check for the specific offsets used inside
+                if (x + 7 < bbic_enc_oligo_vec_gl.size()) {
+
+                    // Introduce errors
+                    bbic_enc_oligo_vec_gl[x+1].second[2] = !bbic_enc_oligo_vec_gl[x+1].second[2];
+
+                    // Typo Fixed: You were flipping x+2 based on x+1. Usually you flip based on itself.
+                    bbic_enc_oligo_vec_gl[x+2].second[5] = !bbic_enc_oligo_vec_gl[x+2].second[5];
+
+                    bbic_enc_oligo_vec_gl[x+7].second[9] = !bbic_enc_oligo_vec_gl[x+7].second[9];
+                }
+            }
+        }
 
         decode_ldpc();
 
@@ -798,7 +815,7 @@ int main() {
 
         cout << "----------EQ?----------" << endl;
         if (!areEqual(data_vec_gl, restored_vec_gl, true)) {
-            // return 1;
+            return 1;
         }
 
         areEqual(data_vec_gl, restored_vec_gl, true);
