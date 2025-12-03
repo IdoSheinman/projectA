@@ -652,6 +652,10 @@ int decode_ldpc()
  * parity oligos (as our LDPC code (/ matrix) is systematic).
  */
 {
+    // 8 should be parallel_number_gl but since the G and H matrixes should
+    // have have fitting dimensions to this number we cannot simply use it as
+    // the matrixes wont work. This number and the matrixes should be updated with
+    // this parameter is updated.
     for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i += 8) {
         bool tmp[8][24] = {false};
 
