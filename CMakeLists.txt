@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(
         projectAsim
-        main.cpp
+        parallel_algo.cpp
         ldpc.cpp
+        ldpc.h
 )
