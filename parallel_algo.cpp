@@ -40,16 +40,16 @@ void printNucVectorBool(vector<bool> vec) {
     auto it = vec.begin();
     for (; (it != vec.end()) && (it + 1 != vec.end()); it = it + 2) {
         if ((!*it) && (!*(it + 1))) {
-            cout << "A" << " ";
+            cout << "00" << " ";
         }
         if ((!*it) && (*(it + 1))) {
-            cout << "T" << " ";
+            cout << "01" << " ";
         }
         if ((*it) && (!*(it + 1))) {
-            cout << "C" << " ";
+            cout << "10" << " ";
         }
         if (*it && *(it + 1)) {
-            cout << "G" << " ";
+            cout << "11" << " ";
         }
     }
     cout << endl;
@@ -108,7 +108,7 @@ int restart_param(int m, int k, int p)
  */
 {
     // BBIC
-    size_m_gl = m; //max_sequence_nuc_gl
+    size_m_gl = m; //max_sequence_nuc_glP
     size_k_gl = k; //size_oligo_nuc_gl
     size_beta_gl = (size_k_gl + size_m_gl - 1) / size_m_gl - 1;
     parallel_number_gl = p;
@@ -142,7 +142,8 @@ void fill_random_data_vec_gl(int data_size)
     random_device rd; // Random device for seed
     mt19937 gen(rd()); // Mersenne Twister RNG
     uniform_int_distribution<size_t> size_dist(0, MAX_BITS); // Size between 0 and 1MB
-    uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
+    // uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
+    uniform_int_distribution<int> bit_dist(1, 1); // Values 0 or 1
 
     // Generate a random size
     size_t test_size = size_dist(gen) * 8;
@@ -154,6 +155,9 @@ void fill_random_data_vec_gl(int data_size)
     for (size_t i = 0; i < test_size; ++i) {
         data_vec_gl[i] = static_cast<bool>(bit_dist(gen));
     }
+    // for (size_t i = 0; i < test_size; i += 2) {
+    //     data_vec_gl[i] = static_cast<bool>(0);
+    // }
 }
 
 int copy_data_chunk_without_Q (int ol_i, int idx_s, int idx_e)
@@ -396,25 +400,25 @@ int real_kb_idxs(int stored_idx)
         return 0;
     }
     if (stored_idx == kb_idxs[1]) {
-        return 4;
-    }
-    if (stored_idx == kb_idxs[2]) {
         return 6;
     }
-    if (stored_idx == kb_idxs[3]) {
-        return 8;
-    }
-    if (stored_idx == kb_idxs[4]) {
-        return 10;
-    }
-    if (stored_idx == kb_idxs[5]) {
+    if (stored_idx == kb_idxs[2]) {
         return 12;
     }
+    if (stored_idx == kb_idxs[3]) {
+        return 18;
+    }
+    if (stored_idx == kb_idxs[4]) {
+        return 24;
+    }
+    if (stored_idx == kb_idxs[5]) {
+        return 30;
+    }
     if (stored_idx == kb_idxs[6]) {
-        return 14;
+        return 36;
     }
     if (stored_idx == kb_idxs[7]) {
-        return 14;
+        return 42;
     }
     return -1;
 }
@@ -460,16 +464,7 @@ void knuth_balance(int idx)
  */ {
     vector<bool> Q_data = vector<bool>();
     vector<bool>& olig = bbic_enc_oligo_vec_gl[idx].second;
-    int zero_cnt = 0;
-    int one_cnt = 0;
-    for (int i = 0; i < olig.size(); i += 2) {
-        if (olig[i] == 0) {
-            zero_cnt += 1;
-        }
-        if (olig[i] == 1) {
-            one_cnt += 1;
-        }
-    }
+
     int idx_to_balance = 0;
     idx_to_balance = find_best_idx(idx);
     for (int i = 4; i <= real_kb_idxs(idx_to_balance) + 4; i += 2) {
@@ -708,16 +703,17 @@ int decode_ldpc()
 
 
 int main() {
-    for (int t=0; t<100; t++) {
+    for (int t=0; t<1; t++) {
         data_vec_gl.clear();
         bbic_enc_oligo_vec_gl.clear();
         restored_vec_gl.clear();
 
         //data_vec_gl = {1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-        fill_random_data_vec_gl(6400); //create random input data for test (must be even length)
+        // fill_random_data_vec_gl(6400); //create random input data for test (must be even length)
+        fill_random_data_vec_gl(100); //create random input data for test (must be even length)
         //restart algo param according to paper
         unsigned long data_size = data_vec_gl.size();
-        restart_param(3, 10, 8);
+        restart_param(3, 27, 8);
 
         //check param
         // size_m >= because of the knuth balance index
