@@ -202,8 +202,12 @@ bool is_condition_1_satisfied(vector<bool> oli, int position)
 
     bool curr_upper_bit;
     bool curr_lower_bit;
-    int current_streak = 1;
-    for (int i = 2; i < 2 * (2 * size_m_gl); i += 2) {
+    // 1 is because the first one starts a streak always,
+    // 2 is because in the HW implementation (in parallel)
+    // we need to read the data of the previous bbic, which we dont have yet,
+    // so we decided to assume it creates a streak (worst case)
+    int current_streak = 2;
+    for (int i = 4; i < 2 * (2 * size_m_gl); i += 2) {
         if (first_lower_pos + i >= oli.size()) {
             return false;
         }
@@ -254,7 +258,7 @@ int add_bbic_bits (int ol_i, int idx_s)
     }
 
     if (it == bbic_enc_oligo_vec_gl.end()) {
-        // This shouldnt happen, but for hw purposes not sure return 1 is ideal.
+        // This shouldnt ever happen, but for hw purposes not sure return -1 is ideal.
         return -1;
     }
 
