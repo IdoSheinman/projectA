@@ -143,7 +143,7 @@ void fill_random_data_vec_gl(int data_size)
     mt19937 gen(rd()); // Mersenne Twister RNG
     uniform_int_distribution<size_t> size_dist(0, MAX_BITS); // Size between 0 and 1MB
     // uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
-    uniform_int_distribution<int> bit_dist(1, 1); // Values 0 or 1
+    uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
 
     // Generate a random size
     size_t test_size = size_dist(gen) * 8;
@@ -496,7 +496,7 @@ int verify_oligo(vector<bool> oligo)
     int at = atcg_counts[0] + atcg_counts[1];
     int cg =  atcg_counts[2] + atcg_counts[3];
     //  GC - content constraint
-    if (at > 7 || cg > 7) { // The oligo length is 12. the at/cg contents needs to be [0.4,0.6] so between 5 to 7
+    if (at > (2+size_k_gl)*0.6 || cg > (2+size_k_gl)*0.6) { // The oligo length is 12. the at/cg contents needs to be [0.4,0.6] so between 5 to 7
         return 1;
     }
 
@@ -583,26 +583,10 @@ int encode_ldpc()
         if (bbic_enc_oligo_vec_gl.size() - i < 8) {
             p = bbic_enc_oligo_vec_gl.size() - i;
         }
-        par_1 = {
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0
-        }; // K=8
-        par_2 = {
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0
-        }; // K=8
-        par_3 = {
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0
-        }; // K=8
-        par_4 = {
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0
-        }; // K=8
+        par_1.assign(2 * size_k_gl + 4, 0); // K=8
+        par_2.assign(2 * size_k_gl + 4, 0);; // K=8
+        par_3.assign(2 * size_k_gl + 4, 0);; // K=8
+        par_4.assign(2 * size_k_gl + 4, 0);; // K=8
 
         for (int j = 0; j < 2 * size_k_gl + 4; j++) {
             bool ignored = false;
@@ -714,7 +698,7 @@ int main() {
 
         //data_vec_gl = {1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
         // fill_random_data_vec_gl(6400); //create random input data for test (must be even length)
-        fill_random_data_vec_gl(100); //create random input data for test (must be even length)
+        fill_random_data_vec_gl(1000); //create random input data for test (must be even length)
         //restart algo param according to paper
         unsigned long data_size = data_vec_gl.size();
         restart_param(3, 27, 8);
