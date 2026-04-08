@@ -40,16 +40,16 @@ void printNucVectorBool(vector<bool> vec) {
     auto it = vec.begin();
     for (; (it != vec.end()) && (it + 1 != vec.end()); it = it + 2) {
         if ((!*it) && (!*(it + 1))) {
-            cout << "00" << " ";
+            cout << "00";// << " ";
         }
         if ((!*it) && (*(it + 1))) {
-            cout << "01" << " ";
+            cout << "01";// << " ";
         }
         if ((*it) && (!*(it + 1))) {
-            cout << "10" << " ";
+            cout << "10";// << " ";
         }
         if (*it && *(it + 1)) {
-            cout << "11" << " ";
+            cout << "11";// << " ";
         }
     }
     cout << endl;
@@ -143,11 +143,11 @@ void fill_random_data_vec_gl(int data_size)
     mt19937 gen(rd()); // Mersenne Twister RNG
     uniform_int_distribution<size_t> size_dist(0, MAX_BITS); // Size between 0 and 1MB
     // uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
-    uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
+    uniform_int_distribution<int> bit_dist(1, 1); // Values 0 or 1
 
     // Generate a random size
-    size_t test_size = size_dist(gen) * 8;
-
+    // size_t test_size = size_dist(gen) * 8;
+    size_t test_size = data_size;
     // Resize the vector
     data_vec_gl.resize(test_size);
 
@@ -217,8 +217,8 @@ bool is_condition_1_satisfied(vector<bool> oli, int position)
         curr_upper_bit = oli[first_upper_pos + i];
         curr_lower_bit = oli[first_lower_pos + i];
 
-            if (curr_upper_bit == oli[first_upper_pos + i] &&
-                curr_lower_bit == oli[first_lower_pos + i]) {
+            if (curr_upper_bit == oli[first_upper_pos + i - 4] &&
+                curr_lower_bit == oli[first_lower_pos + i - 4]) {
                     current_streak += 1;
                 }
             else {
@@ -314,6 +314,14 @@ int encode_bbic() {
         // add bbic bits
         int added = 0;
         for (int ol_n = oligo_num; ol_n < oligo_num + parallel_number_gl; ol_n++) {
+            vector<bool>& olig = bbic_enc_oligo_vec_gl[ol_n].second;
+
+            std::cout << "--- C++ BOUNDARY PROBE ---" << std::endl;
+            std::cout << "1. RAW INPUT: ";
+            for(int i = 0; i < olig.size(); i++) {
+                std::cout << olig[i];
+            }
+            std::cout << std::endl;
             knuth_balance(ol_n);
             added = add_bbic_bits(ol_n, ptr_s); //add q bits
 
@@ -698,7 +706,7 @@ int main() {
 
         //data_vec_gl = {1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
         // fill_random_data_vec_gl(6400); //create random input data for test (must be even length)
-        fill_random_data_vec_gl(1000); //create random input data for test (must be even length)
+        fill_random_data_vec_gl(5000); //create random input data for test (must be even length)
         //restart algo param according to paper
         unsigned long data_size = data_vec_gl.size();
         restart_param(3, 27, 8);
@@ -734,13 +742,13 @@ int main() {
 
         // knuth_balance();
         //print encode bbic data
-        cout << endl << endl << endl << endl;
-        cout << "KNUTH BALANCE DATA" << endl;
-        cout << endl;
-        for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-            // printf("%d, ", i);
-            printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
-        }
+        // cout << endl << endl << endl << endl;
+        // cout << "KNUTH BALANCE DATA" << endl;
+        // cout << endl;
+        // for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
+        //     // printf("%d, ", i);
+        //     printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
+        // }
 
         // Verify oligos are balanced
         for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
@@ -771,6 +779,18 @@ int main() {
                     bbic_enc_oligo_vec_gl[x+7].second[9] = !bbic_enc_oligo_vec_gl[x+7].second[9];
                 }
             }
+        }
+
+        cout <<"balanced" << endl;
+        // Verify oligos are balanced
+        for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
+            // printf("%d, ", i);
+
+            printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
+            if (verify_oligo(bbic_enc_oligo_vec_gl[i].second) != 0) {
+                cout << "BAD OLIGO" << endl;
+                return 1; // BAD OLIGO
+            };
         }
 
         decode_ldpc();
