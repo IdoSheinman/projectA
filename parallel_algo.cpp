@@ -108,7 +108,7 @@ int restart_param(int m, int k, int p)
  */
 {
     // BBIC
-    size_m_gl = m; //max_sequence_nuc_glP
+    size_m_gl = m; //max_sequence_nuc_gl
     size_k_gl = k; //size_oligo_nuc_gl
     size_beta_gl = (size_k_gl + size_m_gl - 1) / size_m_gl - 1;
     parallel_number_gl = p;
@@ -190,45 +190,47 @@ int copy_data_chunk_without_Q (int ol_i, int idx_s, int idx_e)
 
 }
 
-bool is_condition_1_satisfied(vector<bool> oli, int position)
-/**
- * Check for condition 1 as appears in the paper in page 768.
- * :param oli: The index of the oligo to check.
- * :param position: The index of the position to check (where the Q value is inserted.
- */
-{
-    int first_upper_pos = position - (2 * size_m_gl + 1);
-    int first_lower_pos = position - (2 * size_m_gl);
+bool is_condition_1_satisfied(const vector<bool>& oli, int position) {
+    // 'position' is the index of the lower bit of the hole.
+    // The nucleotide base index is position / 2.
+    int rsp_base_idx = position / 2;
 
-    bool curr_upper_bit;
-    bool curr_lower_bit;
-    // 1 is because the first one starts a streak always,
-    // 2 is because in the HW implementation (in parallel)
-    // we need to read the data of the previous bbic, which we dont have yet,
-    // so we decided to assume it creates a streak (worst case)
-    int current_streak = 2;
-    for (int i = 4; i < 2 * (2 * size_m_gl); i += 2) {
-        if (first_lower_pos + i >= oli.size()) {
-            return false;
-        }
-        if (i == 2 * size_m_gl) {
-            continue;
-        }
-        curr_upper_bit = oli[first_upper_pos + i];
-        curr_lower_bit = oli[first_lower_pos + i];
+    // Boundary checks
+    bool n_minus_2_valid = (rsp_base_idx - 2 >= 0);
+    bool n_minus_1_valid = (rsp_base_idx - 1 >= 0);
+    bool n_plus_1_valid  = ((rsp_base_idx + 1) * 2 + 1 < oli.size());
+    bool n_plus_2_valid  = ((rsp_base_idx + 2) * 2 + 1 < oli.size());
 
-            if (curr_upper_bit == oli[first_upper_pos + i - 4] &&
-                curr_lower_bit == oli[first_lower_pos + i - 4]) {
-                    current_streak += 1;
-                }
-            else {
-                    current_streak = 1;
-                }
+    // 1. WORST-CASE BACKWARD ASSUMPTION (Decouples the Hardware)
+    // We intentionally DO NOT read N-3 (the previous BBIC hole).
+    // We assume N-3 always matches N-2. Thus, if N-2 == N-1, we assume a streak of 3.
+    if (n_minus_2_valid && n_minus_1_valid) {
+        bool m2_u = oli[(rsp_base_idx - 2) * 2];
+        bool m2_l = oli[(rsp_base_idx - 2) * 2 + 1];
+        bool m1_u = oli[(rsp_base_idx - 1) * 2];
+        bool m1_l = oli[(rsp_base_idx - 1) * 2 + 1];
 
-        if (current_streak == size_m_gl) {
+        if (m2_u == m1_u && m2_l == m1_l) {
             return true;
         }
     }
+
+    // 2. FORWARD BRIDGING STREAKS (Catches real data streaks)
+    // If the sequence didn't trigger backward, check if N-1 bridges
+    // across the hole into the future raw data to form a streak of 3.
+    if (n_minus_1_valid && n_plus_1_valid && n_plus_2_valid) {
+        bool m1_u = oli[(rsp_base_idx - 1) * 2];
+        bool m1_l = oli[(rsp_base_idx - 1) * 2 + 1];
+        bool p1_u = oli[(rsp_base_idx + 1) * 2];
+        bool p1_l = oli[(rsp_base_idx + 1) * 2 + 1];
+        bool p2_u = oli[(rsp_base_idx + 2) * 2];
+        bool p2_l = oli[(rsp_base_idx + 2) * 2 + 1];
+
+        if (m1_u == p1_u && m1_l == p1_l && p1_u == p2_u && p1_l == p2_l) {
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -515,7 +517,7 @@ int verify_oligo(vector<bool> oligo)
         current = (oligo[i]<<1) | oligo[i + 1];
         if (prev == current) {
             successive++;
-            if (successive == 4) {
+            if (successive > size_m_gl) {
                 return 1;
             }
         }
