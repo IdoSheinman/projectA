@@ -1,3 +1,3 @@
-C:/Projects/projectA/cmake-build-debug/CMakeFiles/projectAsim.dir
-C:/Projects/projectA/cmake-build-debug/CMakeFiles/edit_cache.dir
-C:/Projects/projectA/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+C:/Users/nadav/OneDrive/Desktop/project/projectA/cmake-build-debug/CMakeFiles/projectAsim.dir
+C:/Users/nadav/OneDrive/Desktop/project/projectA/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/nadav/OneDrive/Desktop/project/projectA/cmake-build-debug/CMakeFiles/rebuild_cache.dir
