@@ -37,23 +37,26 @@ void knuth_balance(int idx);
 int real_kb_idxs(int stored_idx);
 
 void printNucVectorBool(vector<bool> vec, bool newline=true) {
+    std::ofstream outFile("../data.txt", std::ios::app);
+
     auto it = vec.begin();
     for (; (it != vec.end()) && (it + 1 != vec.end()); it = it + 2) {
         if ((!*it) && (!*(it + 1))) {
-            cout << "00";// << " ";
+            outFile << "00";// << " ";
         }
         if ((!*it) && (*(it + 1))) {
-            cout << "01";// << " ";
+            outFile << "01";// << " ";
         }
         if ((*it) && (!*(it + 1))) {
-            cout << "10";// << " ";
+            outFile << "10";// << " ";
         }
         if (*it && *(it + 1)) {
-            cout << "11";// << " ";
+            outFile << "11";// << " ";
         }
     }
     if (newline)
-        cout << endl;
+        outFile << endl;
+    outFile.close();
 }
 
 
@@ -694,9 +697,23 @@ int decode_ldpc()
 }
 
 
+void print(string x) {
+    std::ofstream outFile("../data.txt",std::ios::app);
+    outFile << x << endl;
+    outFile.close();
+}
+
+void print(int x) {
+    std::ofstream outFile("../data.txt", std::ios::app);
+    outFile << x << endl;
+    outFile.close();
+}
 
 int main() {
-    for (int t=0; t<1; t++) {
+    std::ofstream outFile("../data.txt", std::ios::trunc);
+    outFile.close();
+
+    for (int t=0; t<5; t++) {
         data_vec_gl.clear();
         bbic_enc_oligo_vec_gl.clear();
         restored_vec_gl.clear();
@@ -720,20 +737,14 @@ int main() {
 
         //print original data
         cout << endl << endl << endl << endl;
-        cout << "ORIGINAL DATA" << endl;
-        cout << endl;
-        printNucVectorBool(data_vec_gl, false);
-        cout << endl;
-        fflush(stdout); // Force the output immediately
-
-
+        print(t);
+        print("ORIGINAL DATA");
+        printNucVectorBool(data_vec_gl);
 
         encode_bbic();
 
         //print encode bbic data
-        cout << endl << endl << endl << endl;
-        cout << "ENCODE BBIC DATA" << endl;
-        cout << endl;
+        print("ENCODE BBIC DATA");
 
         // for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
         //     // printf("%d, ", i);
@@ -757,14 +768,16 @@ int main() {
 
             printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
             if (verify_oligo(bbic_enc_oligo_vec_gl[i].second) != 0) {
-                cout << "BAD OLIGO" << endl;
+                print("BAD OLIGO");
+                // outFile << "BAD OLIGO" << endl;
                 return 1; // BAD OLIGO
             };
         }
 
         encode_ldpc();
 
-        cout<<endl<<"parity:"<<endl;
+        print(""); //newline
+        print("parity:");
         for (int i = 0; i < parity.size(); i++) {
             // printf("%d, ", i);
 
@@ -826,11 +839,8 @@ int main() {
 
 
         //print restored data
-        cout << endl << endl << endl << endl;
-        cout << "RESTORED DATA" << endl;
-        cout << endl;
+        print("RESTORED DATA");
         printNucVectorBool(restored_vec_gl);
-        fflush(stdout); // Force the output immediately
 
         cout << "----------EQ?----------" << endl;
         if (!areEqual(data_vec_gl, restored_vec_gl, true)) {
