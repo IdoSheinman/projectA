@@ -150,8 +150,8 @@ void fill_random_data_vec_gl(int data_size)
     uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
 
     // Generate a random size
-    // size_t test_size = size_dist(gen) * 8;
-    size_t test_size = data_size;
+    size_t test_size = size_dist(gen) * 8;
+    // size_t test_size = data_size;
     // Resize the vector
     data_vec_gl.resize(test_size);
 
@@ -713,7 +713,7 @@ int main() {
     std::ofstream outFile("../data.txt", std::ios::trunc);
     outFile.close();
 
-    for (int t=0; t<5; t++) {
+    for (int t=0; t<100; t++) {
         data_vec_gl.clear();
         bbic_enc_oligo_vec_gl.clear();
         restored_vec_gl.clear();
@@ -737,7 +737,12 @@ int main() {
 
         //print original data
         cout << endl << endl << endl << endl;
-        print(t);
+        std::ostringstream stringStream;
+        stringStream << "Starting block " << t;
+        std::string copyOfStr = stringStream.str();
+
+
+        print(copyOfStr);
         print("ORIGINAL DATA");
         printNucVectorBool(data_vec_gl);
 
@@ -782,10 +787,10 @@ int main() {
             // printf("%d, ", i);
 
             printNucVectorBool(parity[i]);
-            // if (verify_oligo(parity[i]) != 0) {
-            //     cout << "BAD OLIGO" << endl;
-            //     return 1; // BAD OLIGO
-            // };
+            if (verify_oligo(parity[i]) != 0) {
+                cout << "BAD OLIGO" << endl;
+                return 1; // BAD OLIGO
+            };
         }
 
         // Check if we have enough oligos to run this loop safely
@@ -805,17 +810,17 @@ int main() {
                 }
             }
         }
-        /*cout <<"with errors" << endl;
-        // Verify oligos are balanced
-        for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-            // printf("%d, ", i);
+         /*cout <<"with errors" << endl;
+         // Verify oligos are balanced
+         for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
+             // printf("%d, ", i);
 
-            printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
-            if (verify_oligo(bbic_enc_oligo_vec_gl[i].second) != 0) {
-                cout << "BAD OLIGO" << endl;
-                return 1; // BAD OLIGO
-            };
-        }*/
+             printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
+             if (verify_oligo(bbic_enc_oligo_vec_gl[i].second) != 0) {
+                 cout << "BAD OLIGO" << endl;
+                 return 1; // BAD OLIGO
+             };
+         }*/
 
         decode_ldpc();
 
