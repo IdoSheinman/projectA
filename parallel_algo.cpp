@@ -21,6 +21,9 @@ using namespace std;
 #define NUC_T 1
 #define NUC_C 2
 #define NUC_G 3
+// Output is name input, as the tests read input.txt as their data
+#define OUTPUT_FILE_NAME "../input.txt"
+#define MAX_INPUT_SIZE 10000
 
 // GLOBAL VAR
 vector<bool> data_vec_gl;
@@ -37,21 +40,21 @@ void knuth_balance(int idx);
 int real_kb_idxs(int stored_idx);
 
 void printNucVectorBool(vector<bool> vec, bool newline=true) {
-    std::ofstream outFile("../data2.txt", std::ios::app);
+    std::ofstream outFile(OUTPUT_FILE_NAME, std::ios::app);
 
     auto it = vec.begin();
     for (; (it != vec.end()) && (it + 1 != vec.end()); it = it + 2) {
         if ((!*it) && (!*(it + 1))) {
-            outFile << "00";// << " ";
+            outFile << "00";
         }
         if ((!*it) && (*(it + 1))) {
-            outFile << "01";// << " ";
+            outFile << "01";
         }
         if ((*it) && (!*(it + 1))) {
-            outFile << "10";// << " ";
+            outFile << "10";
         }
         if (*it && *(it + 1)) {
-            outFile << "11";// << " ";
+            outFile << "11";
         }
     }
     if (it != vec.end()) {            // NEW: emit the unpaired tail bit
@@ -143,29 +146,21 @@ void fill_random_data_vec_gl(int data_size)
  * This function creates random data for us to encode and decode to verify our success.
  */
 {
-    // Constants for 0 to 1 MB size in bits
-    const size_t MAX_BITS = data_size; //128 * 8 * 8; // 1 KB in bits
-
     // Seed random number generator
     random_device rd; // Random device for seed
     mt19937 gen(rd()); // Mersenne Twister RNG
-    uniform_int_distribution<size_t> size_dist(0, MAX_BITS); // Size between 0 and 1MB
+    uniform_int_distribution<size_t> size_dist(0, data_size); // Size between 0 and 1MB
     // uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
     uniform_int_distribution<int> bit_dist(0, 1); // Values 0 or 1
 
     // Generate a random size
     size_t test_size = size_dist(gen) * 8;
-    // size_t test_size = data_size;
-    // Resize the vector
     data_vec_gl.resize(test_size);
 
     // Fill with random values
     for (size_t i = 0; i < test_size; ++i) {
         data_vec_gl[i] = static_cast<bool>(bit_dist(gen));
     }
-    // for (size_t i = 0; i < test_size; i += 2) {
-    //     data_vec_gl[i] = static_cast<bool>(0);
-    // }
 }
 
 int copy_data_chunk_without_Q (int ol_i, int idx_s, int idx_e)
@@ -196,7 +191,6 @@ int copy_data_chunk_without_Q (int ol_i, int idx_s, int idx_e)
 
     // return (add_empty_items_bbic((it->second), size_m_gl));
     return (add_empty_items_bbic((it->second), size_m_gl));
-
 }
 
 bool is_condition_1_satisfied(const vector<bool>& oli, int position) {
@@ -276,7 +270,6 @@ int add_bbic_bits (int ol_i, int idx_s)
     for (int l = 2 * size_m_gl + 1; l < it->second.size(); l += 2 * size_m_gl) {
         // If need to stop sequence.
         if (is_condition_1_satisfied(it->second, l) && is_condition_2_satisfied(it->second, l)) {
-            // TODO: Shouldnt this be l-1
             it->second[l] = !(it->second[l - 2]);
         }
         // Else can fill data
@@ -374,14 +367,6 @@ int decode_bbic()
                             (bbic_enc_oligo_vec_gl[ol_n].second[2] << 1) |
                             (bbic_enc_oligo_vec_gl[ol_n].second[3] << 0); // Index 3 is LSB
 
-            // NOTE: In knuth_balance you wrote:
-            // [0] = val & 1
-            // [1] = (val & 2) >> 1
-            // So [0] is LSB.
-            // In your previous decode code you had (vec[0] << 3). This was reversed.
-            // I corrected the bitwise logic above to match your knuth_balance write order.
-
-            // Unbalance Payload (skip header 0-3)
             for (int j = 4; j <= real_kb_idxs(kbt_idx) + 4; j += 2) {
                  if (j < bbic_enc_oligo_vec_gl[ol_n].second.size())
                     bbic_enc_oligo_vec_gl[ol_n].second[j] = !bbic_enc_oligo_vec_gl[ol_n].second[j];
@@ -563,10 +548,10 @@ int balance_parity_oligo(vector<bool>& parity_oligo, int x)
 
     for (int i=0;i<4;i++) {
         if (current_balance > 0) { // More 0s
-            parity_oligo[IGNORED_POSITIONS[i]] = 1;
+            parity_oligo[IGNORED_POSITIONS[i]] = true;
             current_balance -= 1;
         } else {
-            parity_oligo[IGNORED_POSITIONS[i]] = 0;
+            parity_oligo[IGNORED_POSITIONS[i]] = false;
             current_balance += 1;
         }
     }
@@ -702,19 +687,20 @@ int decode_ldpc()
 
 
 void print(string x) {
-    std::ofstream outFile("../data2.txt",std::ios::app);
+    std::ofstream outFile(OUTPUT_FILE_NAME,std::ios::app);
     outFile << x << endl;
     outFile.close();
 }
 
 void print(int x) {
-    std::ofstream outFile("../data2.txt", std::ios::app);
+    std::ofstream outFile(OUTPUT_FILE_NAME, std::ios::app);
     outFile << x << endl;
     outFile.close();
 }
 
 int main() {
-    std::ofstream outFile("../data2.txt", std::ios::trunc);
+    // Clears the current ouput
+    std::ofstream outFile(OUTPUT_FILE_NAME, std::ios::trunc);
     outFile.close();
 
     for (int t=0; t<100; t++) {
@@ -722,13 +708,12 @@ int main() {
         bbic_enc_oligo_vec_gl.clear();
         restored_vec_gl.clear();
         cout << "Actual C++ array size: " << data_vec_gl.size() << endl;
-        fill_random_data_vec_gl(9000); //create random input data for test (must be even length)
+        fill_random_data_vec_gl(MAX_INPUT_SIZE); //create random input data for test (must be even length)
+
         //restart algo param according to paper
-        unsigned long data_size = data_vec_gl.size();
         restart_param(3, 27, 8);
 
         //check param
-        // size_m >= because of the knuth balance index
         if (2 * size_m_gl >= size_k_gl || size_m_gl <= 2) {
             cout << "K and M is invalid" << endl;
             exit(1);
@@ -747,33 +732,12 @@ int main() {
 
         encode_bbic();
 
-        //print encode bbic data
         print("ENCODE BBIC DATA");
-
-        // for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-        //     // printf("%d, ", i);
-        //
-        //     printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
-        // }
-
-        // knuth_balance();
-        //print encode bbic data
-        // cout << endl << endl << endl << endl;
-        // cout << "KNUTH BALANCE DATA" << endl;
-        // cout << endl;
-        // for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-        //     // printf("%d, ", i);
-        //     printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
-        // }
-
         // Verify oligos are balanced
         for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-            // printf("%d, ", i);
-
             printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
             if (verify_oligo(bbic_enc_oligo_vec_gl[i].second) != 0) {
                 print("BAD OLIGO");
-                // outFile << "BAD OLIGO" << endl;
                 return 1; // BAD OLIGO
             };
         }
@@ -783,8 +747,6 @@ int main() {
         print(""); //newline
         print("parity:");
         for (int i = 0; i < parity.size(); i++) {
-            // printf("%d, ", i);
-
             printNucVectorBool(parity[i]);
             if (verify_oligo(parity[i]) != 0) {
                 cout << "BAD OLIGO" << endl;
@@ -810,15 +772,14 @@ int main() {
             }
         }
          print("WITH ERRORS");
-         // Do not verify oligos are balanced, as the erros can very well unbalance them
+         // Do not verify oligos are balanced, as the inserter errors can very well
+         // unbalance them
          for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
              printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
          }
         print(""); //newline
         print("parity:");
         for (int i = 0; i < parity.size(); i++) {
-            // printf("%d, ", i);
-
             printNucVectorBool(parity[i]);
             if (verify_oligo(parity[i]) != 0) {
                 cout << "BAD OLIGO" << endl;
@@ -827,17 +788,6 @@ int main() {
         }
 
         decode_ldpc();
-
-        // decode_knuth_balance();
-        //print encode bbic data
-        // cout << endl << endl << endl << endl;
-        // cout << "KNUTH BALANCE DATA AFTER DECODE" << endl;
-        // cout << endl;
-        //
-        // for (int i = 0; i < bbic_enc_oligo_vec_gl.size(); i++) {
-        //     printNucVectorBool(bbic_enc_oligo_vec_gl[i].second);
-        // }
-
         decode_bbic();
 
         cout << "----------------" << endl;
@@ -847,7 +797,6 @@ int main() {
         cout << "m: " << size_m_gl << endl;
 
 
-        //print restored data
         print("RESTORED DATA");
         printNucVectorBool(restored_vec_gl);
 
@@ -858,7 +807,6 @@ int main() {
 
         areEqual(data_vec_gl, restored_vec_gl, true);
         parity.clear();
-        // exit(0);
     }
 
 
