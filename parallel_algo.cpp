@@ -450,7 +450,7 @@ int find_best_idx(int idx)
     int index = 0;
 
     for (int i = 0; i < 8; i++) {
-        if (scores[i] <= scores[index])
+        if (scores[i] < scores[index])
             index = i;
     }
     return kb_idxs[index];
